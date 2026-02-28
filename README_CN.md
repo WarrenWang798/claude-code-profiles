@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Bash](https://img.shields.io/badge/Shell-Bash%203.2%2B-green.svg)](https://www.gnu.org/software/bash/)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/user/claude-code-profiles)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/WarrenWang798/claude-code-profiles)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-purple.svg)](https://claude.ai/code)
 
 [English](README.md) | [中文文档](README_CN.md)
@@ -27,7 +27,7 @@ CCP 面向需要可预测环境控制的开发者，而非 provider 抽象。
 
 ```bash
 # 一键安装（推荐）
-curl -fsSL https://raw.githubusercontent.com/user/claude-code-profiles/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
 source ~/.zshrc  # 或 ~/.bashrc
 
 # 初始化（一次性，清除冲突配置）
@@ -63,19 +63,19 @@ ccc work
 
 ```bash
 # 一键安装（无需 git clone）
-curl -fsSL https://raw.githubusercontent.com/user/claude-code-profiles/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
 ```
 
 或使用 wget：
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/user/claude-code-profiles/main/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
 ```
 
 或克隆后本地安装：
 
 ```bash
-git clone https://github.com/user/claude-code-profiles.git
+git clone https://github.com/WarrenWang798/claude-code-profiles.git
 cd claude-code-profiles
 ./install.sh
 ```
@@ -101,7 +101,7 @@ source ~/.zshrc  # 或 ~/.bashrc
 ./uninstall.sh
 
 # 远程安装的用户
-curl -fsSL https://raw.githubusercontent.com/user/claude-code-profiles/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/uninstall.sh | bash
 
 # 重载 shell
 source ~/.zshrc

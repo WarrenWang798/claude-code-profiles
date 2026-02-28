@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Bash](https://img.shields.io/badge/Shell-Bash%203.2%2B-green.svg)](https://www.gnu.org/software/bash/)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/user/claude-code-profiles)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/WarrenWang798/claude-code-profiles)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-purple.svg)](https://claude.ai/code)
 
 [English](README.md) | [中文文档](README_CN.md)
@@ -27,7 +27,7 @@ CCP is for developers who want predictable env control, not provider abstraction
 
 ```bash
 # One-line install (recommended)
-curl -fsSL https://raw.githubusercontent.com/user/claude-code-profiles/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
 source ~/.zshrc  # or ~/.bashrc
 
 # Initialize (one-time, clears conflicting settings)
@@ -63,19 +63,19 @@ ccc work
 
 ```bash
 # One-line install (no git clone needed)
-curl -fsSL https://raw.githubusercontent.com/user/claude-code-profiles/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
 ```
 
 Or with wget:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/user/claude-code-profiles/main/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
 ```
 
 Or clone and install locally:
 
 ```bash
-git clone https://github.com/user/claude-code-profiles.git
+git clone https://github.com/WarrenWang798/claude-code-profiles.git
 cd claude-code-profiles
 ./install.sh
 ```
@@ -101,7 +101,7 @@ source ~/.zshrc  # or ~/.bashrc
 ./uninstall.sh
 
 # If installed via curl (download uninstall script)
-curl -fsSL https://raw.githubusercontent.com/user/claude-code-profiles/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/uninstall.sh | bash
 
 # Then reload shell
 source ~/.zshrc

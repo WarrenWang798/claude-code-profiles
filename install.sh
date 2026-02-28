@@ -4,17 +4,17 @@ set -euo pipefail
 # Claude Code Profile Switcher (CCP) — 安装脚本
 # 支持两种安装方式:
 #   本地: git clone 后运行 ./install.sh
-#   远程: curl -fsSL https://raw.githubusercontent.com/<user>/claude-code-profiles/main/install.sh | bash
+#   远程: curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
 #
 # 环境变量:
 #   CCP_DIR     — 自定义安装目录（默认 ~/.local/share/ccp）
-#   CCP_REPO    — 自定义 GitHub 仓库（默认 <user>/claude-code-profiles）
+#   CCP_REPO    — 自定义 GitHub 仓库（默认 WarrenWang798/claude-code-profiles）
 #   CCP_BRANCH  — 自定义分支（默认 main）
 
 CCP_VERSION="2.0.0"
 
 # GitHub 仓库信息（用户可通过环境变量覆盖）
-REPO="${CCP_REPO:-<user>/claude-code-profiles}"
+REPO="${CCP_REPO:-WarrenWang798/claude-code-profiles}"
 BRANCH="${CCP_BRANCH:-main}"
 RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
