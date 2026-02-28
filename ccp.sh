@@ -1129,7 +1129,7 @@ show_help() {
     echo "  eval \"\$(ccp work)\"              # Switch to 'work' profile"
     echo "  ccp add staging                  # Add new profile (interactive)"
     echo "  ccp set-env work MODEL claude-4  # Set custom env var"
-    echo "  ccp show-env work                # Show profile\'s env vars"
+    echo "  ccp show-env work                # Show profile's env vars"
     echo "  ccp list                         # List all profiles"
     echo ""
     echo -e "${YELLOW}Config file format:${NC}"
