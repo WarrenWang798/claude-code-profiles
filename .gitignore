@@ -1,0 +1,22 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Test files
+*.test.json
+test_*.sh.log
+
+# Local config (contains API keys - never commit!)
+# Note: ~/.ccp_profiles.json is stored in home directory, not in repo

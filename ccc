@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Claude Code Commander (ccc) for CCP
+# 切换 profile 并启动 Claude Code
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+CCP_CMD_DEFAULT="$SCRIPT_DIR/ccp.sh"
+CCP="${CCP_CMD:-$CCP_CMD_DEFAULT}"
+
+usage() {
+    cat <<EOF
+Usage: ./ccc <profile> [claude-options]
+
+Examples:
+  ./ccc work                              # Switch to 'work' profile and launch
+  ./ccc personal --dangerously-skip-permissions  # With Claude options
+
+Available commands:
+  ccp add <name>     # Add new profile
+  ccp list           # List all profiles
+  ccp status         # Show current status
+EOF
+}
+
+if [[ ! -f "$CCP" ]]; then
+    echo "ccc error: cannot find ccp script at $CCP" >&2
+    exit 1
+fi
+
+if [[ $# -lt 1 ]]; then
+    usage
+    exit 1
+fi
+
+profile="$1"
+shift || true
+
+# Remaining args are passed to claude
+claude_args=("$@")
+
+# Apply profile environment
+eval "$("$CCP" "$profile")"
+
+# Show status
+echo ""
+echo "🚀 Launching Claude Code..."
+echo "   Profile: $profile"
+echo "   Base URL: ${ANTHROPIC_BASE_URL:-'(not set)'}"
+echo ""
+
+# Ensure claude is available
+if ! command -v claude >/dev/null 2>&1; then
+    echo "❌ 'claude' CLI not found. Install: npm install -g @anthropic-ai/claude-code" >&2
+    exit 127
+fi
+
+# Launch Claude Code
+if [[ ${#claude_args[@]} -eq 0 ]]; then
+    exec claude
+else
+    exec claude "${claude_args[@]}"
+fi
