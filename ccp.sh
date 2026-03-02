@@ -241,8 +241,8 @@ cmd_init() {
     success "Initialization complete!"
     echo ""
     info "Claude Code will now use shell environment variables."
-    info "Use 'ccp2 add <profile>' to create a profile."
-    info "Use 'ccp2 <profile>' to switch profiles."
+    info "Use 'ccp add <profile>' to create a profile."
+    info "Use 'ccp <profile>' to switch profiles."
 }
 
 #############################################
@@ -253,7 +253,7 @@ cmd_add() {
     local profile="${1:-}"
     
     if [[ -z "$profile" ]]; then
-        die "Profile name required. Usage: ccp2 add <name>"
+        die "Profile name required. Usage: ccp add <name>"
     fi
     
     if ! is_valid_profile_name "$profile"; then
@@ -295,7 +295,7 @@ cmd_add() {
 cmd_remove() {
     local profile="${1:-}"
     
-    [[ -z "$profile" ]] && die "Profile name required. Usage: ccp2 remove <name>"
+    [[ -z "$profile" ]] && die "Profile name required. Usage: ccp remove <name>"
     
     if ! profile_exists "$profile"; then
         die "Profile '${profile}' does not exist"
@@ -352,7 +352,7 @@ cmd_list() {
     if (( !found )); then
         echo -e "  ${YELLOW}No profiles configured${NC}"
         echo ""
-        echo "  Add a profile with: ccp2 add <name>"
+        echo "  Add a profile with: ccp add <name>"
     fi
     
     echo ""
@@ -400,7 +400,7 @@ cmd_switch() {
     [[ -z "$profile" ]] && die "Profile name required"
     
     if ! profile_exists "$profile"; then
-        die "Profile '${profile}' does not exist. Use 'ccp2 list' to see available profiles."
+        die "Profile '${profile}' does not exist. Use 'ccp list' to see available profiles."
     fi
     
     # 读取并输出 export 语句
@@ -556,16 +556,16 @@ show_help() {
 Claude Code Profile Switcher (CCP) 2.0
 
 USAGE:
-    ccp2 <profile>              Switch to specified profile
-    ccp2 add <name>             Add a new profile (interactive)
-    ccp2 remove <name>          Remove a profile
-    ccp2 list                   List all profiles
-    ccp2 status                 Show current status
-    ccp2 set-env <profile> <VAR> <value>   Set custom env var
-    ccp2 unset-env <profile> <VAR>         Remove custom env var
-    ccp2 show-env <profile>       Show env vars for profile
-    ccp2 init                   Initialize Claude Code settings
-    ccp2 help                   Show this help
+    ccp <profile>              Switch to specified profile
+    ccp add <name>             Add a new profile (interactive)
+    ccp remove <name>          Remove a profile
+    ccp list                   List all profiles
+    ccp status                 Show current status
+    ccp set-env <profile> <VAR> <value>   Set custom env var
+    ccp unset-env <profile> <VAR>         Remove custom env var
+    ccp show-env <profile>       Show env vars for profile
+    ccp init                   Initialize Claude Code settings
+    ccp help                   Show this help
 
 CONFIG LOCATION:
     ~/.ccp/profiles/            Profile .env files
@@ -621,7 +621,7 @@ main() {
             if is_valid_profile_name "$cmd"; then
                 cmd_switch "$cmd"
             else
-                die "Unknown command: $cmd. Use 'ccp2 help' for usage."
+                die "Unknown command: $cmd. Use 'ccp help' for usage."
             fi
             ;;
     esac
