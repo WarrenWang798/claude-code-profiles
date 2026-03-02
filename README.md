@@ -166,8 +166,9 @@ source ~/.zshrc  # or ~/.bashrc
 ```
 ~/.local/share/ccp/ccp.sh    # Main script
 ~/.local/share/ccp/ccc       # Launcher script
+~/.local/share/ccp/ccp-init.sh # Shell init script (defines ccp/ccc)
 ~/.ccp/profiles/              # Profile .env files (created on first use)
-~/.zshrc or ~/.bashrc        # Shell functions injected
+~/.zshrc or ~/.bashrc        # Minimal source block (no large function injection)
 ```
 
 ### Uninstall
@@ -192,7 +193,7 @@ rm -rf ~/.ccp
 
 ```
 ccp.sh outputs `export` statements to stdout and status messages to stderr.
-The shell function `ccp()` uses `eval` to apply exports to the current shell.
+Your rc file loads `ccp-init.sh`, and the shell function `ccp()` uses `eval` to apply exports to the current shell.
 Each terminal gets its own environment — no global state, no file conflicts.
 ```
 

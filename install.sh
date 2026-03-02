@@ -20,8 +20,12 @@ RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
 INSTALL_DIR="${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}"
 DEST_SCRIPT_PATH="$INSTALL_DIR/ccp.sh"
-BEGIN_MARK="# >>> ccp function begin >>>"
-END_MARK="# <<< ccp function end <<<"
+DEST_CCC_PATH="$INSTALL_DIR/ccc"
+DEST_INIT_PATH="$INSTALL_DIR/ccp-init.sh"
+BEGIN_MARK="# >>> ccp init begin >>>"
+END_MARK="# <<< ccp init end <<<"
+OLD_BEGIN_MARK="# >>> ccp function begin >>>"
+OLD_END_MARK="# <<< ccp function end <<<"
 
 # 检测本地是否有 ccp.sh（判断是本地安装还是远程安装）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
@@ -84,14 +88,16 @@ detect_rc_file() {
     esac
 }
 
-# 移除已有的 ccp 函数块
+# 移除已有的 ccp 注入块
 remove_existing_block() {
     local rc="$1"
+    local begin_mark="$2"
+    local end_mark="$3"
     [[ -f "$rc" ]] || return 0
-    if grep -qF "$BEGIN_MARK" "$rc"; then
+    if grep -qF "$begin_mark" "$rc"; then
         local tmp
         tmp="$(mktemp)"
-        awk -v b="$BEGIN_MARK" -v e="$END_MARK" '
+        awk -v b="$begin_mark" -v e="$end_mark" '
             $0==b {inblock=1; next}
             $0==e {inblock=0; next}
             !inblock {print}
@@ -99,14 +105,12 @@ remove_existing_block() {
     fi
 }
 
-# 追加 shell 函数块
-append_function_block() {
-    local rc="$1"
-    mkdir -p "$(dirname "$rc")"
-    [[ -f "$rc" ]] || touch "$rc"
-    cat >> "$rc" << 'BLOCK_EOF'
-# >>> ccp function begin >>>
-# CCP: Claude Code Profile Switcher
+# 写入独立的 shell 初始化脚本（避免向 rc 注入大段代码）
+write_init_script() {
+    cat > "$DEST_INIT_PATH" << 'INIT_EOF'
+#!/usr/bin/env bash
+# CCP shell init: 定义 ccp/ccc 函数
+
 unalias ccp 2>/dev/null || true
 unset -f ccp 2>/dev/null || true
 ccp() {
@@ -116,8 +120,8 @@ ccp() {
         return 1
     fi
 
-    case "$1" in
-        ""|"help"|"-h"|"--help"|"status"|"st"|"list"|"ls"|"add"|"remove"|"rm"|"delete"|"edit"|"set-env"|"unset-env"|"show-env"|"init")
+    case "${1:-}" in
+        ""|"help"|"-h"|"--help"|"status"|"st"|"list"|"ls"|"add"|"remove"|"rm"|"set-env"|"unset-env"|"show-env"|"init")
             "$script" "$@"
             ;;
         *)
@@ -126,45 +130,31 @@ ccp() {
     esac
 }
 
-# CCC: Switch profile and launch Claude Code
 unalias ccc 2>/dev/null || true
 unset -f ccc 2>/dev/null || true
 ccc() {
-    if [[ $# -eq 0 ]]; then
-        echo "Usage: ccc <profile> [claude-options]"
-        echo ""
-        echo "Examples:"
-        echo "  ccc work              # Launch with 'work' profile"
-        echo "  ccc personal          # Launch with 'personal' profile"
-        echo ""
-        echo "Use 'ccp list' to see available profiles"
+    local launcher="${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}/ccc"
+    if [[ ! -x "$launcher" ]]; then
+        echo "ccc error: launcher not found at $launcher" >&2
         return 1
     fi
-
-    local profile="$1"
-    shift
-
-    # Switch profile
-    ccp "$profile" || return 1
-
-    echo ""
-    echo "🚀 Launching Claude Code..."
-    echo "   Profile: $profile"
-    echo "   Base URL: ${ANTHROPIC_BASE_URL:-'(not set)'}"
-    echo ""
-
-    if ! command -v claude >/dev/null 2>&1; then
-        echo "❌ 'claude' CLI not found. Install: npm install -g @anthropic-ai/claude-code" >&2
-        return 127
-    fi
-
-    if [[ $# -eq 0 ]]; then
-        exec claude
-    else
-        exec claude "$@"
-    fi
+    "$launcher" "$@"
 }
-# <<< ccp function end <<<
+INIT_EOF
+    chmod +x "$DEST_INIT_PATH"
+}
+
+# 仅向 rc 追加极简 source 引导块
+append_source_block() {
+    local rc="$1"
+    mkdir -p "$(dirname "$rc")"
+    [[ -f "$rc" ]] || touch "$rc"
+    cat >> "$rc" << 'BLOCK_EOF'
+# >>> ccp init begin >>>
+if [[ -f "${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}/ccp-init.sh" ]]; then
+    source "${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}/ccp-init.sh"
+fi
+# <<< ccp init end <<<
 BLOCK_EOF
 }
 
@@ -176,26 +166,34 @@ main() {
     # 1. 创建安装目录
     mkdir -p "$INSTALL_DIR"
 
-    # 2. 获取 ccp.sh
+    # 2. 获取 ccp.sh / ccc
     if [[ "$IS_LOCAL" == "true" ]]; then
         info "本地安装 (从 $SCRIPT_DIR)"
         cp -f "$LOCAL_CCP" "$DEST_SCRIPT_PATH"
+        cp -f "$SCRIPT_DIR/ccc" "$DEST_CCC_PATH"
     else
         info "远程安装 (从 github.com/${REPO})"
         download "${RAW_BASE}/ccp.sh" "$DEST_SCRIPT_PATH"
+        download "${RAW_BASE}/ccc" "$DEST_CCC_PATH"
     fi
     chmod +x "$DEST_SCRIPT_PATH"
+    chmod +x "$DEST_CCC_PATH"
+    write_init_script
 
-    # 3. 注入 shell 函数
+    # 3. 注入 shell 引导块（先清理旧版函数大块）
     local rc
     rc="$(detect_rc_file)"
-    remove_existing_block "$rc"
-    append_function_block "$rc"
+    remove_existing_block "$rc" "$OLD_BEGIN_MARK" "$OLD_END_MARK"
+    remove_existing_block "$rc" "$BEGIN_MARK" "$END_MARK"
+    append_source_block "$rc"
 
     # 4. 完成
     echo ""
-    ok "已安装 ccp 和 ccc 函数到: $rc"
-    echo "   脚本位置: $DEST_SCRIPT_PATH"
+    ok "已安装 ccp 和 ccc 到: $INSTALL_DIR"
+    echo "   主脚本: $DEST_SCRIPT_PATH"
+    echo "   启动器: $DEST_CCC_PATH"
+    echo "   初始化脚本: $DEST_INIT_PATH"
+    echo "   rc 引导块: $rc"
     echo ""
     info "重载 shell:"
     echo "   source $rc"

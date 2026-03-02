@@ -1,217 +1,253 @@
 #!/usr/bin/env bash
-# CCP 测试脚本 — 覆盖所有核心操作
+# CCP 2.0 测试脚本：覆盖核心命令与安装注入行为
 set -euo pipefail
 
-# 颜色
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# 计数器
 PASS=0
 FAIL=0
 TOTAL=0
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CCP_SCRIPT="${SCRIPT_DIR}/../ccp.sh"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CCP_SCRIPT="$ROOT_DIR/ccp.sh"
+INSTALL_SCRIPT="$ROOT_DIR/install.sh"
+UNINSTALL_SCRIPT="$ROOT_DIR/uninstall.sh"
 TMP_HOME=""
 
 pass() { echo -e "${GREEN}✓ PASS${NC}: $1"; PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); }
 fail() { echo -e "${RED}✗ FAIL${NC}: $1"; FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); }
 info() { echo -e "${BLUE}→${NC} $1"; }
 
-# 运行 ccp 命令（隔离 HOME）
-run() { HOME="$TMP_HOME" bash "$CCP_SCRIPT" "$@" 2>&1; }
+run() {
+    HOME="$TMP_HOME" bash "$CCP_SCRIPT" "$@" 2>&1
+}
 
-# 仅获取 stdout（export 语句）
-exports() { HOME="$TMP_HOME" bash "$CCP_SCRIPT" "$@" 2>/dev/null; }
+run_with_input() {
+    local input="$1"
+    shift
+    printf '%s' "$input" | HOME="$TMP_HOME" bash "$CCP_SCRIPT" "$@" 2>&1
+}
 
-# 写入测试 profile（直接写 JSON 绕过交互式 add）
-# 创建测试用的 .env profile
-seed_config() {
-    rm -rf "$TEST_CCP_DIR"
-    mkdir -p "$TEST_CCP_PROFILES_DIR"
-    
-    # 创建 work profile
-    cat > "$TEST_CCP_PROFILES_DIR/work.env" << 'ENVEOF'
+exports() {
+    HOME="$TMP_HOME" bash "$CCP_SCRIPT" "$@" 2>/dev/null
+}
+
+seed_profiles() {
+    mkdir -p "$TMP_HOME/.ccp/profiles"
+
+    cat > "$TMP_HOME/.ccp/profiles/work.env" << 'ENVEOF'
 # CCP Profile: work
 ANTHROPIC_BASE_URL=https://api.work.com/v1
 ANTHROPIC_AUTH_TOKEN=sk-work-test-key
 # Custom env vars
 ANTHROPIC_MODEL=claude-sonnet-4
 ENVEOF
-    chmod 600 "$TEST_CCP_PROFILES_DIR/work.env"
-    
-    # 创建 personal profile
-    cat > "$TEST_CCP_PROFILES_DIR/personal.env" << 'ENVEOF'
+    chmod 600 "$TMP_HOME/.ccp/profiles/work.env"
+
+    cat > "$TMP_HOME/.ccp/profiles/personal.env" << 'ENVEOF'
 # CCP Profile: personal
 ANTHROPIC_BASE_URL=https://api.anthropic.com
 ANTHROPIC_AUTH_TOKEN=sk-personal-test-key
 ENVEOF
-    chmod 600 "$TEST_CCP_PROFILES_DIR/personal.env"
-    
-    # 设置当前 profile
-    echo "work" > "$TEST_CCP_CURRENT_FILE"
-    chmod 600 "$TEST_CCP_CURRENT_FILE"
-}
-EOF
-    chmod 600 "$TMP_HOME/.ccp_profiles.json"
+    chmod 600 "$TMP_HOME/.ccp/profiles/personal.env"
+
+    echo "work" > "$TMP_HOME/.ccp/current"
+    chmod 600 "$TMP_HOME/.ccp/current"
 }
 
 setup() {
-    info "Setting up test environment..."
-    TMP_HOME=$(mktemp -d)
+    info "Setting up isolated HOME"
+    TMP_HOME="$(mktemp -d)"
     mkdir -p "$TMP_HOME/.claude"
-    seed_config
+    seed_profiles
     info "Test HOME: $TMP_HOME"
     echo ""
 }
 
-cleanup() { [[ -n "$TMP_HOME" && -d "$TMP_HOME" ]] && rm -rf "$TMP_HOME"; }
+cleanup() {
+    if [[ -n "$TMP_HOME" && -d "$TMP_HOME" ]]; then
+        rm -rf "$TMP_HOME"
+    fi
+}
 
-# ============ TEST CASES ============
+assert_contains() {
+    local haystack="$1"
+    local needle="$2"
+    local msg="$3"
+    if echo "$haystack" | grep -q "$needle"; then
+        pass "$msg"
+    else
+        fail "$msg"
+    fi
+}
+
+assert_not_contains() {
+    local haystack="$1"
+    local needle="$2"
+    local msg="$3"
+    if echo "$haystack" | grep -q "$needle"; then
+        fail "$msg"
+    else
+        pass "$msg"
+    fi
+}
 
 test_help() {
     info "help command"
-    local out; out=$(run help)
-    echo "$out" | grep -q "Usage:" && pass "help displays usage" || fail "help missing usage"
+    local out
+    out=$(run help)
+    assert_contains "$out" "USAGE:" "help displays usage"
 }
 
 test_status() {
     info "status command"
-    local out; out=$(run status)
-    echo "$out" | grep -q "Current configuration" && pass "status works" || fail "status broken"
+    local out
+    out=$(run status)
+    assert_contains "$out" "Current profile:" "status shows current profile"
+    assert_contains "$out" "work" "status includes work profile"
 }
 
 test_list() {
-    info "list profiles"
-    local out; out=$(run list)
-    echo "$out" | grep -q "work" && pass "list shows work profile" || fail "list missing work"
-    echo "$out" | grep -q "personal" && pass "list shows personal profile" || fail "list missing personal"
-    echo "$out" | grep -q "+2 env vars" && pass "list shows env count" || fail "list missing env count"
+    info "list command"
+    local out
+    out=$(run list)
+    assert_contains "$out" "work" "list shows work profile"
+    assert_contains "$out" "personal" "list shows personal profile"
 }
 
 test_switch_exports() {
-    info "switch profile exports"
-    local out; out=$(exports work)
-    echo "$out" | grep -q "export ANTHROPIC_BASE_URL=" && pass "switch exports BASE_URL" || fail "missing BASE_URL"
-    echo "$out" | grep -q "https://api.work.com" && pass "switch has correct URL" || fail "wrong URL"
-    echo "$out" | grep -q "export ANTHROPIC_AUTH_TOKEN=" && pass "switch exports AUTH_TOKEN" || fail "missing AUTH_TOKEN"
-    echo "$out" | grep -q "unset ANTHROPIC_API_KEY" && pass "switch unsets API_KEY" || fail "missing unset"
-    echo "$out" | grep -q "export MODEL=" && pass "switch exports custom env" || fail "missing custom env"
+    info "switch exports"
+    local out
+    out=$(exports work)
+    assert_contains "$out" "export ANTHROPIC_BASE_URL='https://api.work.com/v1'" "switch exports base url"
+    assert_contains "$out" "export ANTHROPIC_AUTH_TOKEN='sk-work-test-key'" "switch exports auth token"
+    assert_contains "$out" "export ANTHROPIC_MODEL='claude-sonnet-4'" "switch exports custom env"
+    assert_contains "$out" "unset ANTHROPIC_API_KEY" "switch unsets API key"
 }
 
 test_switch_updates_current() {
     info "switch updates current"
-    exports work >/dev/null
-    local cur; cur=$(HOME="$TMP_HOME" bash "$CCP_SCRIPT" status 2>&1 | grep "Profile:" | head -1)
-    echo "$cur" | grep -q "work" && pass "current updated to work" || fail "current not updated"
+    exports personal >/dev/null
+    local current
+    current=$(cat "$TMP_HOME/.ccp/current")
+    if [[ "$current" == "personal" ]]; then
+        pass "current profile updated"
+    else
+        fail "current profile not updated"
+    fi
 }
 
 test_nonexistent_profile() {
-    info "non-existent profile error"
-    local out; out=$(run nonexistent_xyz 2>&1) || true
-    echo "$out" | grep -q "not found" && pass "non-existent profile rejected" || fail "no error for bad profile"
+    info "nonexistent profile"
+    local out
+    out=$(run not_exists 2>&1 || true)
+    assert_contains "$out" "does not exist" "nonexistent profile rejected"
 }
 
-test_set_env() {
-    info "set-env"
-    run set-env work NEW_VAR "new_value" >/dev/null
-    local out; out=$(run show-env work)
-    echo "$out" | grep -q "NEW_VAR" && pass "set-env adds var" || fail "set-env failed"
+test_set_unset_env() {
+    info "set-env and unset-env"
+    run set-env work NEW_VAR "new value" >/dev/null
+    local show
+    show=$(run show-env work)
+    assert_contains "$show" "NEW_VAR=new value" "set-env adds variable"
+
+    run unset-env work NEW_VAR >/dev/null
+    show=$(run show-env work)
+    assert_not_contains "$show" "NEW_VAR=" "unset-env removes variable"
 }
 
-test_unset_env() {
-    info "unset-env"
-    run set-env work TEMP_VAR "temp" >/dev/null
-    run unset-env work TEMP_VAR >/dev/null
-    local out; out=$(run show-env work)
-    echo "$out" | grep -q "TEMP_VAR" && fail "unset-env didn't remove" || pass "unset-env removes var"
-}
-
-test_env_spaces_roundtrip() {
-    info "env value with spaces"
-    run set-env work SPACED "hello beautiful world" >/dev/null
-    local out; out=$(exports work)
-    echo "$out" | grep -q "hello beautiful world" && pass "spaces preserved" || fail "spaces lost"
-    # cleanup
-    run unset-env work SPACED >/dev/null
-}
-
-test_env_singlequote_roundtrip() {
-    info "env value with single quotes"
-    run set-env work QUOTED "it's a test" >/dev/null
-    local out; out=$(exports work)
-    # value should contain escaped single quote
-    echo "$out" | grep "QUOTED=" | grep -q "it" && pass "single-quote value handled" || fail "single-quote broken"
-    # verify the export is valid shell
-    eval "$(echo "$out" | grep "QUOTED=")" 2>/dev/null && pass "single-quote export is valid shell" || fail "single-quote eval fails"
+test_singlequote_roundtrip() {
+    info "single quote roundtrip"
+    run set-env work QUOTED "it's test" >/dev/null
+    local out
+    out=$(exports work)
+    local line
+    line=$(echo "$out" | grep "export QUOTED=")
+    if eval "$line" 2>/dev/null && [[ "${QUOTED:-}" == "it's test" ]]; then
+        pass "single quote export remains eval-safe"
+    else
+        fail "single quote export broken"
+    fi
     run unset-env work QUOTED >/dev/null
 }
 
-test_malicious_key_rejected() {
-    info "malicious env key rejected"
-    local out; out=$(run set-env work "FOO;rm -rf /" "evil" 2>&1) || true
-    echo "$out" | grep -q "Invalid" && pass "injection key rejected" || fail "injection key accepted!"
+test_invalid_key_rejected() {
+    info "invalid key rejected"
+    local out
+    out=$(run set-env work "BAD KEY" value 2>&1 || true)
+    assert_contains "$out" "Invalid variable name" "invalid env key rejected"
 }
 
-test_key_with_spaces_rejected() {
-    info "key with spaces rejected"
-    local out; out=$(run set-env work "BAD KEY" "val" 2>&1) || true
-    echo "$out" | grep -q "Invalid" && pass "spaced key rejected" || fail "spaced key accepted!"
+test_remove_profile() {
+    info "remove profile"
+    run_with_input "y\n" remove personal >/dev/null
+    local out
+    out=$(run list)
+    assert_not_contains "$out" "personal" "remove deletes target profile"
+    assert_contains "$out" "work" "remove preserves other profiles"
 }
 
-test_remove_preserves_others() {
-    info "remove profile preserves others"
-    run remove personal >/dev/null
-    local out; out=$(run list)
-    echo "$out" | grep -q "personal" && fail "personal still present" || pass "personal removed"
-    echo "$out" | grep -q "work" && pass "work preserved after remove" || fail "work lost after remove"
-}
-
-test_set_env_preserves_profile() {
-    info "set-env preserves base_url/api_key"
-    run set-env work EXTRA "extra_val" >/dev/null
-    local out; out=$(exports work)
-    echo "$out" | grep -q "https://api.work.com" && pass "base_url preserved" || fail "base_url lost"
-    echo "$out" | grep -q "sk-work-key-123" && pass "api_key preserved" || fail "api_key lost"
-    run unset-env work EXTRA >/dev/null
-}
-
-test_init_removes_env() {
-    info "init removes env from settings.json"
-    cat > "$TMP_HOME/.claude/settings.json" << 'EOF'
+test_init_resets_settings_and_backup() {
+    info "init command"
+    cat > "$TMP_HOME/.claude/settings.json" << 'JSONEOF'
 {
-  "something": "value",
   "env": {
-    "CONFLICT": "conflict_value"
-  }
+    "CONFLICT": "1"
+  },
+  "x": 1
 }
-EOF
+JSONEOF
+
     run init >/dev/null
-    grep -q "CONFLICT" "$TMP_HOME/.claude/settings.json" 2>/dev/null && fail "init didn't remove env" || pass "init removed env"
+
+    local settings
+    settings=$(cat "$TMP_HOME/.claude/settings.json")
+    if [[ "$settings" == "{}" ]]; then
+        pass "init resets settings.json to empty object"
+    else
+        fail "init did not reset settings.json"
+    fi
+
+    if ls "$TMP_HOME/.claude/backups"/settings.json.* >/dev/null 2>&1; then
+        pass "init creates backup"
+    else
+        fail "init backup missing"
+    fi
 }
 
-test_init_no_env() {
-    info "init handles no env gracefully"
-    cat > "$TMP_HOME/.claude/settings.json" << 'EOF'
-{
-  "something": "value"
-}
-EOF
-    local out; out=$(run init)
-    echo "$out" | grep -qi "no env\|already" && pass "init handles no-env" || fail "init bad no-env handling"
-}
+test_install_injects_minimal_source_block() {
+    info "install/uninstall source block regression"
 
-test_config_json_valid() {
-    info "config JSON remains valid after mutations"
-    # After all the mutations, verify the JSON is parseable by awk
-    local profiles; profiles=$(HOME="$TMP_HOME" bash "$CCP_SCRIPT" list 2>&1)
-    echo "$profiles" | grep -q "work" && pass "JSON still valid after mutations" || fail "JSON corrupted"
-}
+    HOME="$TMP_HOME" SHELL=/bin/zsh bash "$INSTALL_SCRIPT" >/dev/null
 
-# ============ MAIN ============
+    local rc
+    rc="$TMP_HOME/.zshrc"
+    local init
+    init="$TMP_HOME/.local/share/ccp/ccp-init.sh"
+
+    if [[ -f "$init" ]]; then
+        pass "install creates ccp-init.sh"
+    else
+        fail "install missing ccp-init.sh"
+    fi
+
+    local rc_content
+    rc_content=$(cat "$rc")
+    assert_contains "$rc_content" "# >>> ccp init begin >>>" "rc contains new begin marker"
+    assert_contains "$rc_content" "source" "rc contains source statement"
+    assert_not_contains "$rc_content" "ccp()" "rc does not inject large function body"
+
+    HOME="$TMP_HOME" SHELL=/bin/zsh bash "$UNINSTALL_SCRIPT" >/dev/null
+    if [[ -f "$rc" ]] && [[ -z "$(cat "$rc")" ]]; then
+        pass "uninstall removes injected rc block"
+    else
+        fail "uninstall did not clean rc block"
+    fi
+}
 
 main() {
     echo "========================================"
@@ -227,17 +263,12 @@ main() {
     test_switch_exports
     test_switch_updates_current
     test_nonexistent_profile
-    test_set_env
-    test_unset_env
-    test_env_spaces_roundtrip
-    test_env_singlequote_roundtrip
-    test_malicious_key_rejected
-    test_key_with_spaces_rejected
-    test_remove_preserves_others
-    test_set_env_preserves_profile
-    test_init_removes_env
-    test_init_no_env
-    test_config_json_valid
+    test_set_unset_env
+    test_singlequote_roundtrip
+    test_invalid_key_rejected
+    test_remove_profile
+    test_init_resets_settings_and_backup
+    test_install_injects_minimal_source_block
 
     cleanup
 

@@ -166,8 +166,9 @@ source ~/.zshrc  # 或 ~/.bashrc
 ```
 ~/.local/share/ccp/ccp.sh    # 主脚本
 ~/.local/share/ccp/ccc       # 启动器脚本
+~/.local/share/ccp/ccp-init.sh # Shell 初始化脚本（定义 ccp/ccc）
 ~/.ccp/profiles/              # Profile .env 文件（首次使用时创建）
-~/.zshrc 或 ~/.bashrc        # 注入的 shell 函数
+~/.zshrc 或 ~/.bashrc        # 极简 source 引导块（不注入大段函数）
 ```
 
 ### 卸载
@@ -192,7 +193,7 @@ rm -rf ~/.ccp
 
 ```
 ccp.sh 将 `export` 语句输出到 stdout，将状态消息输出到 stderr。
-shell 函数 `ccp()` 使用 `eval` 将导出应用到当前 shell。
+rc 文件会加载 `ccp-init.sh`，其中 shell 函数 `ccp()` 使用 `eval` 将导出应用到当前 shell。
 每个终端都有自己的环境 —— 无全局状态，无文件冲突。
 ```
 
