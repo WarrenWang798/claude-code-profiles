@@ -1,30 +1,30 @@
 #!/usr/bin/env bash
-set -euo pipefail
-
-# Claude Code Commander (ccc) for CCP
+# Claude Code Commander (ccc2) for CCP 2.0
 # 切换 profile 并启动 Claude Code
 
+set -euo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-CCP_CMD_DEFAULT="$SCRIPT_DIR/ccp.sh"
-CCP="${CCP_CMD:-$CCP_CMD_DEFAULT}"
+CCP2_CMD_DEFAULT="${SCRIPT_DIR}/ccp.sh"
+CCP2="${CCP2_CMD:-$CCP2_CMD_DEFAULT}"
 
 usage() {
-    cat <<EOF
-Usage: ./ccc <profile> [claude-options]
+    cat << 'EOF'
+Usage: ./ccc2 <profile> [claude-options]
 
 Examples:
-  ./ccc work                              # Switch to 'work' profile and launch
-  ./ccc personal --dangerously-skip-permissions  # With Claude options
+  ./ccc2 work                              # Switch to 'work' profile and launch
+  ./ccc2 personal --dangerously-skip-permissions  # With Claude options
 
 Available commands:
-  ccp add <name>     # Add new profile
-  ccp list           # List all profiles
-  ccp status         # Show current status
+  ccp2 add <name>     # Add new profile
+  ccp2 list           # List all profiles
+  ccp2 status         # Show current status
 EOF
 }
 
-if [[ ! -f "$CCP" ]]; then
-    echo "ccc error: cannot find ccp script at $CCP" >&2
+if [[ ! -f "$CCP2" ]]; then
+    echo "ccc2 error: cannot find ccp2 script at $CCP2" >&2
     exit 1
 fi
 
@@ -40,7 +40,7 @@ shift || true
 claude_args=("$@")
 
 # Apply profile environment
-eval "$("$CCP" "$profile")"
+eval "$($CCP2 "$profile" 2>/dev/null)"
 
 # Show status
 echo ""

@@ -28,24 +28,32 @@ run() { HOME="$TMP_HOME" bash "$CCP_SCRIPT" "$@" 2>&1; }
 exports() { HOME="$TMP_HOME" bash "$CCP_SCRIPT" "$@" 2>/dev/null; }
 
 # 写入测试 profile（直接写 JSON 绕过交互式 add）
+# 创建测试用的 .env profile
 seed_config() {
-    cat > "$TMP_HOME/.ccp_profiles.json" << 'EOF'
-{
-  "current": "",
-  "profiles": {
-    "work": {
-      "base_url": "https://api.work.com",
-      "api_key": "sk-work-key-123",
-      "env": {
-        "MODEL": "claude-4",
-        "TIMEOUT": "60000"
-      }
-    },
-    "personal": {
-      "base_url": "https://api.anthropic.com",
-      "api_key": "sk-ant-personal"
-    }
-  }
+    rm -rf "$TEST_CCP_DIR"
+    mkdir -p "$TEST_CCP_PROFILES_DIR"
+    
+    # 创建 work profile
+    cat > "$TEST_CCP_PROFILES_DIR/work.env" << 'ENVEOF'
+# CCP Profile: work
+ANTHROPIC_BASE_URL=https://api.work.com/v1
+ANTHROPIC_AUTH_TOKEN=sk-work-test-key
+# Custom env vars
+ANTHROPIC_MODEL=claude-sonnet-4
+ENVEOF
+    chmod 600 "$TEST_CCP_PROFILES_DIR/work.env"
+    
+    # 创建 personal profile
+    cat > "$TEST_CCP_PROFILES_DIR/personal.env" << 'ENVEOF'
+# CCP Profile: personal
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+ANTHROPIC_AUTH_TOKEN=sk-personal-test-key
+ENVEOF
+    chmod 600 "$TEST_CCP_PROFILES_DIR/personal.env"
+    
+    # 设置当前 profile
+    echo "work" > "$TEST_CCP_CURRENT_FILE"
+    chmod 600 "$TEST_CCP_CURRENT_FILE"
 }
 EOF
     chmod 600 "$TMP_HOME/.ccp_profiles.json"

@@ -1,6 +1,6 @@
-# Claude Code Profile Switcher (CCP)
+# Claude Code Profile Switcher (CCP) 2.0
 
-> Pure Bash profile management for Claude Code. Zero dependencies, terminal-native isolation.
+> Pure Bash profile management for Claude Code. **.env file based**, zero dependencies, terminal-native isolation.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Bash](https://img.shields.io/badge/Shell-Bash%203.2%2B-green.svg)](https://www.gnu.org/software/bash/)
@@ -9,19 +9,30 @@
 
 [English](README.md) | [中文文档](README_CN.md)
 
+---
+
+## 🚀 What's New in 2.0
+
+- **.env file based storage** — Simple, human-readable, editable
+- **Zero JSON parsing** — No complex awk scripts
+- **Simplified init** — Just backup and reset
+- **Better ccc launcher** — 🚀 Launching Claude Code... display
+
+---
+
 ## Why CCP?
 
-Other tools manage API endpoints. CCP manages your entire terminal environment.
+Other tools manage API endpoints. **CCP manages your entire terminal environment.**
 
 **Per-profile env bundles** — Each profile carries arbitrary custom env vars (MODEL, TIMEOUT, FEATURE_FLAGS). Set `ANTHROPIC_MODEL=claude-sonnet-4` for work, `ANTHROPIC_MODEL=claude-opus-4` for personal. The only CLI tool that does this.
 
-**Terminal-native isolation** — Pure env var exports via `stdout`, status messages via `stderr`. Each terminal gets its own environment. No global config pollution, no accidental cross-talk between sessions. Unlike CCM's `ccm user` which writes to `~/.claude/settings.json`.
+**Terminal-native isolation** — Pure env var exports via `stdout`, status messages via `stderr`. Each terminal gets its own environment. No global config pollution, no accidental cross-talk between sessions.
 
-**Truly zero dependencies** — Pure Bash 3.2. No Python, no Node, no jq. Works on stock macOS out of the box. Single ~900 line script you can audit in 15 minutes.
+**Truly zero dependencies** — Pure Bash 3.2. No Python, no Node, no jq. Works on stock macOS out of the box. Single ~600 line script you can audit in 15 minutes.
 
 **Auditable simplicity** — For security-conscious developers managing API keys: one file, no external calls, readable source. Know exactly what runs when you switch profiles.
 
-CCP is for developers who want predictable env control, not provider abstraction.
+---
 
 ## Quick Start
 
@@ -40,17 +51,81 @@ ccp add work
 ccc work
 ```
 
-## Features
+---
 
-| Feature | Description |
+## New .env Format
+
+CCP 2.0 uses simple `.env` files instead of JSON:
+
+```bash
+# ~/.ccp/profiles/work.env
+# CCP Profile: work
+ANTHROPIC_BASE_URL=https://api.example.com/v1
+ANTHROPIC_AUTH_TOKEN=sk-xxxxx
+# Custom env vars
+ANTHROPIC_MODEL=claude-sonnet-4
+API_TIMEOUT_MS=600000
+```
+
+**Benefits:**
+- ✏️ Human-readable and editable
+- 🔍 Easy to debug
+- 📋 Easy to copy/share
+- 🛡️ No JSON parsing complexity
+
+---
+
+## Commands
+
+| Command | Description |
 |---------|-------------|
-| **Multi-Profile** | Store unlimited API configurations |
-| **Quick Switch** | One command to switch profiles |
-| **One-Command Launch** | `ccc <profile>` switches and launches Claude Code |
-| **Custom Env Vars** | Set any environment variable per profile |
-| **Terminal Isolation** | Different terminals can use different profiles simultaneously |
-| **Zero Dependencies** | Pure Bash 3.2, no Python/Node/jq required |
-| **Secure Storage** | API keys masked in all output |
+| `ccc <profile>` | **Switch profile and launch Claude Code** |
+| `ccp <profile>` | Switch to profile (sets env vars) |
+| `ccp add <name>` | Add/update profile (interactive) |
+| `ccp remove <name>` | Remove a profile |
+| `ccp list` | List all profiles |
+| `ccp status` | Show current configuration |
+| `ccp set-env <profile> <VAR> <value>` | Set custom env var |
+| `ccp unset-env <profile> <VAR>` | Remove custom env var |
+| `ccp show-env <profile>` | Show all env vars for profile |
+| `ccp init` | Initialize Claude Code settings |
+| `ccp help` | Show help |
+
+---
+
+## Configuration Location
+
+```
+~/.ccp/
+├── profiles/
+│   ├── work.env          # Profile definitions
+│   ├── personal.env
+│   └── ...
+└── current               # Current profile name
+```
+
+---
+
+## Migration from CCP 1.x
+
+CCP 2.0 is **not backward compatible** with 1.x profiles. You need to recreate your profiles:
+
+```bash
+# Old profiles were in ~/.ccp_profiles.json
+# New profiles are in ~/.ccp/profiles/*.env
+
+# 1. Backup old config
+cp ~/.ccp_profiles.json ~/.ccp_profiles.json.backup
+
+# 2. Re-create profiles
+ccp add work
+ccp add personal
+
+# 3. Done! Remove old config if desired
+rm ~/.ccp_profiles.json
+```
+
+---
 
 ## Installation
 
@@ -90,7 +165,8 @@ source ~/.zshrc  # or ~/.bashrc
 
 ```
 ~/.local/share/ccp/ccp.sh    # Main script
-~/.ccp_profiles.json          # Config file (created on first use)
+~/.local/share/ccp/ccc       # Launcher script
+~/.ccp/profiles/              # Profile .env files (created on first use)
 ~/.zshrc or ~/.bashrc        # Shell functions injected
 ```
 
@@ -107,68 +183,10 @@ curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/
 source ~/.zshrc
 
 # Optional: remove config
-rm ~/.ccp_profiles.json
+rm -rf ~/.ccp
 ```
 
-## Usage
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `ccc <profile>` | **Switch profile and launch Claude Code** |
-| `ccp <profile>` | Switch to profile (sets env vars) |
-| `ccp add <name>` | Add/update profile (interactive) |
-| `ccp remove <name>` | Remove a profile |
-| `ccp list` | List all profiles |
-| `ccp status` | Show current configuration |
-| `ccp init` | Clear env from ~/.claude/settings.json |
-| `ccp edit` | Open config in editor |
-| `ccp set-env <profile> <VAR> <value>` | Set custom env var |
-| `ccp unset-env <profile> <VAR>` | Remove custom env var |
-| `ccp show-env [profile]` | Show profile's env vars |
-| `ccp help` | Show help |
-
-### Examples
-
-**Add a profile:**
-```bash
-$ ccp add work
-Adding profile: work
-
-Base URL: https://api.example.com/v1
-API Key: sk-xxxxxxxxxxxx
-
-Profile 'work' saved
-  BASE_URL: https://api.example.com/v1
-  API_KEY: [set] sk-x...xxxx
-```
-
-**Switch and launch:**
-```bash
-$ ccc work
-
-🚀 Launching Claude Code...
-   Profile: work
-   Base URL: https://api.example.com/v1
-```
-
-**Set custom environment variable:**
-```bash
-$ ccp set-env work ANTHROPIC_MODEL claude-sonnet-4
-Set ANTHROPIC_MODEL in profile 'work'
-```
-
-**Use different profiles in different terminals:**
-```bash
-# Terminal 1
-$ ccc work
-# Uses work profile
-
-# Terminal 2
-$ ccc personal
-# Uses personal profile (completely independent)
-```
+---
 
 ## How It Works
 
@@ -184,81 +202,28 @@ This architecture means:
 - No lock files, no race conditions, no state sync issues
 - Closing a terminal cleans up automatically (env vars die with the shell)
 
-## Configuration
-
-### Config File
-
-Location: `~/.ccp_profiles.json`
-
-```json
-{
-  "current": "work",
-  "profiles": {
-    "work": {
-      "base_url": "https://api.example.com/v1",
-      "api_key": "sk-work-xxxxxxxxxxxx",
-      "env": {
-        "ANTHROPIC_MODEL": "claude-sonnet-4",
-        "API_TIMEOUT_MS": "600000"
-      }
-    },
-    "personal": {
-      "base_url": "https://api.anthropic.com",
-      "api_key": "sk-ant-xxxxxxxxxxxx"
-    }
-  }
-}
-```
-
-### Profile Fields
-
-| Field | Description | Required |
-|-------|-------------|----------|
-| `base_url` | API endpoint URL | Yes |
-| `api_key` | API authentication key | Yes |
-| `env` | Custom environment variables | No |
-
-### Environment Variables Set
-
-When switching profiles, CCP exports:
-
-```bash
-ANTHROPIC_BASE_URL    # API endpoint
-ANTHROPIC_API_URL     # Same as BASE_URL
-ANTHROPIC_AUTH_TOKEN  # API key
-# Plus any custom env vars defined in profile
-```
-
-Note: CCP explicitly unsets `ANTHROPIC_API_KEY` to avoid conflicts with `ANTHROPIC_AUTH_TOKEN`.
-
-## Security
-
-- **API keys masked** in all output (`sk-x...xxxx` format)
-- **Config file permissions** set to `600` (owner read/write only)
-- **Env var keys validated** — alphanumeric + underscore only, no injection
-- **Export values shell-escaped** — single-quote injection safe
-- **No keys in shell history** when using interactive `ccp add`
-- **No external network calls** — pure local operations
-
-For vulnerability reports, see [SECURITY.md](SECURITY.md).
+---
 
 ## CCP vs Alternatives
 
-| Feature | CCP | CCM | CCS |
-|---------|-----|-----|-----|
-| Custom env vars per profile | Yes | No | No |
-| Terminal isolation guarantee | Yes | Writes global config | Shared proxy state |
-| Zero dependencies | Yes | Yes | No (Node.js) |
+| Feature | CCP 2.0 | CCM | CCS |
+|---------|---------|-----|-----|
+| Storage format | **.env files** | JSON | JSON |
+| Custom env vars per profile | **Yes** | No | No |
+| Terminal isolation guarantee | **Yes** | Writes global config | Shared proxy state |
+| Zero dependencies | **Yes** | Yes | No (Node.js) |
 | Built-in provider presets | No | 7+ | 17+ |
 | Proxy/routing features | No | No | Yes |
 | Web UI | No | No | Yes |
-| Lines of code | ~900 | ~400 | ~3000+ |
+| Lines of code | **~600** | ~400 | ~3000+ |
 
-**Choose CCP if:** You want predictable per-terminal env control, minimal footprint, and auditable code.
+**Choose CCP if:** You want predictable per-terminal env control, minimal footprint, auditable code, and .env file simplicity.
 
 **Choose CCM if:** You need built-in provider presets and a simpler feature set.
 
 **Choose CCS if:** You want a proxy layer, Web UI, or don't mind Node.js dependencies.
+
+---
 
 ## Troubleshooting
 
@@ -287,12 +252,16 @@ ccp work
 ### Permission denied
 
 ```bash
-chmod 600 ~/.ccp_profiles.json
+chmod 600 ~/.ccp/profiles/*.env
 ```
+
+---
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
 
 ## Related Projects
 
@@ -300,6 +269,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - [Claude Code Switch (CCM)](https://github.com/foreveryh/claude-code-switch) — Switch between different AI model providers
 - [Claude Code Switch (CCS)](https://github.com/kaitranntt/ccs) — Full-featured proxy with Web UI
 - [Claude Code Router](https://github.com/musistudio/claude-code-router) — Request routing and load balancing
+
+---
 
 ## License
 
