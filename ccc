@@ -10,10 +10,14 @@ CCP="${CCP_CMD:-$CCP_CMD_DEFAULT}"
 
 usage() {
     cat << 'EOF'
-Usage: ccc <profile> [claude-options]
+Usage:
+  ccc <profile> [claude-options]
+  ccc env <profile> [claude-options]
 
 Examples:
-  ccc work                              # Switch to 'work' profile and launch
+  ccc work                                     # Switch to 'work' profile and launch
+  ccc env work                                 # Same, with explicit 'env' subcommand
+  ccc env work --resume abc123                 # Resume a session
   ccc personal --dangerously-skip-permissions  # With Claude options
 
 Available commands:
@@ -31,6 +35,16 @@ fi
 if [[ $# -lt 1 ]]; then
     usage
     exit 1
+fi
+
+# Support: ccc env <profile> [args...]  OR  ccc <profile> [args...]
+if [[ "$1" == "env" ]]; then
+    shift
+    if [[ $# -lt 1 ]]; then
+        echo "ccc error: 'env' requires a profile name" >&2
+        usage
+        exit 1
+    fi
 fi
 
 profile="$1"
