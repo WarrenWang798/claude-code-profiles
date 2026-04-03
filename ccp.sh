@@ -1,5 +1,5 @@
 #!/bin/bash
-# Claude Code Profile Switcher (CCP) 2.0
+# Claude Code Profile Switcher (CCP) 3.0
 # Pure .env file based configuration management
 # Bash 3.2+ compatible, zero external dependencies
 
@@ -77,67 +77,6 @@ is_valid_profile_name() {
     [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]
 }
 
-# Shell 安全单引号转义
-shell_quote() {
-    local s="$1"
-    s=${s//\'/\'"\'"\'}
-    printf '%s' "$s"
-}
-
-#############################################
-# .env 文件操作
-#############################################
-
-# 读取 .env 文件并输出 export 语句
-# 成功返回 0，失败返回 1
-read_env_file() {
-    local profile="$1"
-    local env_file="${CCP_PROFILES_DIR}/${profile}.env"
-    
-    if [[ ! -f "${env_file}" ]]; then
-        return 1
-    fi
-    
-    # 验证必需字段
-    local has_base_url=0 has_token=0
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        # 跳过注释和空行
-        [[ "$line" =~ ^[[:space:]]*# ]] && continue
-        [[ -z "$line" ]] && continue
-        
-        [[ "$line" == ANTHROPIC_BASE_URL=* ]] && has_base_url=1
-        [[ "$line" == ANTHROPIC_AUTH_TOKEN=* ]] && has_token=1
-    done < "${env_file}"
-    
-    if (( !has_base_url || !has_token )); then
-        die "Missing required fields in ${env_file}"
-    fi
-    
-    # 输出 export 语句
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        [[ "$line" =~ ^[[:space:]]*# ]] && continue
-        [[ -z "$line" ]] && continue
-        [[ "$line" != *=* ]] && continue
-        
-        local key value
-        key="${line%%=*}"
-        value="${line#*=}"
-        
-        # 验证 key
-        if ! is_valid_env_key "$key"; then
-            warn "Invalid key '${key}' skipped"
-            continue
-        fi
-        
-        echo "export ${key}='$(shell_quote "$value")'"
-    done < "${env_file}"
-    
-    # 始终 unset ANTHROPIC_API_KEY
-    echo "unset ANTHROPIC_API_KEY"
-    
-    return 0
-}
-
 # 写入 .env 文件
 write_env_file() {
     local profile="$1"
@@ -197,6 +136,207 @@ set_current_profile() {
     echo "$profile" | atomic_write "${CCP_CURRENT_FILE}"
 }
 
+# 重写 settings.json，删除顶层 env 键
+rewrite_settings_without_env() {
+    local input_file="$1"
+    local output_file="$2"
+
+    awk '
+        function skip_ws(pos,    ch) {
+            while (pos <= len) {
+                ch = substr(json, pos, 1)
+                if (ch !~ /[[:space:]]/) {
+                    break
+                }
+                pos++
+            }
+            return pos
+        }
+
+        function parse_string(pos,    ch, out, escape) {
+            if (substr(json, pos, 1) != "\"") {
+                return 0
+            }
+
+            out = ""
+            escape = 0
+            pos++
+
+            while (pos <= len) {
+                ch = substr(json, pos, 1)
+                if (escape) {
+                    out = out ch
+                    escape = 0
+                } else if (ch == "\\") {
+                    escape = 1
+                } else if (ch == "\"") {
+                    parsed_string = out
+                    return pos
+                } else {
+                    out = out ch
+                }
+                pos++
+            }
+
+            return 0
+        }
+
+        function parse_value(pos,    ch, brace_depth, bracket_depth, in_string, escape) {
+            ch = substr(json, pos, 1)
+            if (ch == "\"") {
+                return parse_string(pos)
+            }
+
+            if (ch != "{" && ch != "[") {
+                while (pos <= len) {
+                    ch = substr(json, pos, 1)
+                    if (ch == "," || ch == "}") {
+                        return pos - 1
+                    }
+                    pos++
+                }
+                return len
+            }
+
+            brace_depth = 0
+            bracket_depth = 0
+            in_string = 0
+            escape = 0
+
+            while (pos <= len) {
+                ch = substr(json, pos, 1)
+
+                if (in_string) {
+                    if (escape) {
+                        escape = 0
+                    } else if (ch == "\\") {
+                        escape = 1
+                    } else if (ch == "\"") {
+                        in_string = 0
+                    }
+                    pos++
+                    continue
+                }
+
+                if (ch == "\"") {
+                    in_string = 1
+                    pos++
+                    continue
+                }
+
+                if (ch == "{") {
+                    brace_depth++
+                } else if (ch == "}") {
+                    brace_depth--
+                } else if (ch == "[") {
+                    bracket_depth++
+                } else if (ch == "]") {
+                    bracket_depth--
+                }
+
+                if (brace_depth < 0 || bracket_depth < 0) {
+                    return 0
+                }
+
+                if (brace_depth == 0 && bracket_depth == 0) {
+                    return pos
+                }
+
+                pos++
+            }
+
+            return 0
+        }
+
+        BEGIN {
+            json = ""
+            parsed_string = ""
+        }
+
+        {
+            json = json $0 ORS
+        }
+
+        END {
+            len = length(json)
+            start = skip_ws(1)
+            if (start > len || substr(json, start, 1) != "{") {
+                exit 1
+            }
+
+            finish = len
+            while (finish > start && substr(json, finish, 1) ~ /[[:space:]]/) {
+                finish--
+            }
+
+            if (substr(json, finish, 1) != "}") {
+                exit 1
+            }
+
+            pos = start + 1
+            kept_count = 0
+
+            while (1) {
+                pos = skip_ws(pos)
+                if (pos > finish) {
+                    exit 1
+                }
+
+                ch = substr(json, pos, 1)
+                if (ch == "}") {
+                    pos++
+                    break
+                }
+
+                member_start = pos
+                key_end = parse_string(pos)
+                if (!key_end) {
+                    exit 1
+                }
+
+                key = parsed_string
+                pos = skip_ws(key_end + 1)
+                if (substr(json, pos, 1) != ":") {
+                    exit 1
+                }
+
+                pos = skip_ws(pos + 1)
+                value_end = parse_value(pos)
+                if (!value_end) {
+                    exit 1
+                }
+
+                if (key != "env") {
+                    kept_count++
+                    kept_members[kept_count] = substr(json, member_start, value_end - member_start + 1)
+                }
+
+                pos = skip_ws(value_end + 1)
+                ch = substr(json, pos, 1)
+                if (ch == ",") {
+                    pos++
+                    continue
+                }
+                if (ch == "}") {
+                    pos++
+                    break
+                }
+                exit 1
+            }
+
+            output = substr(json, 1, start - 1) "{"
+            for (i = 1; i <= kept_count; i++) {
+                if (i > 1) {
+                    output = output ","
+                }
+                output = output kept_members[i]
+            }
+            output = output "}" substr(json, finish + 1)
+            printf "%s", output
+        }
+    ' "${input_file}" > "${output_file}"
+}
+
 #############################################
 # Init 命令
 #############################################
@@ -206,6 +346,7 @@ cmd_init() {
     local backup_dir="${settings_dir}/backups"
     local settings_file="${settings_dir}/settings.json"
     local max_backups=5
+    local tmp_file
     
     info "Initializing Claude Code settings..."
     
@@ -213,20 +354,29 @@ cmd_init() {
     mkdir -p "${settings_dir}"
     mkdir -p "${backup_dir}"
     
-    # 如果存在 settings.json，备份它
+    # 如果存在 settings.json，备份并精准删除顶层 env
     if [[ -f "${settings_file}" ]]; then
         local timestamp
         timestamp=$(date +%Y%m%d_%H%M%S)
         local backup_file="${backup_dir}/settings.json.${timestamp}"
         
-        mv "${settings_file}" "${backup_file}"
+        cp "${settings_file}" "${backup_file}"
         chmod 600 "${backup_file}"
         success "Backed up settings to: ${backup_file}"
+
+        tmp_file=$(mktemp "${settings_file}.tmp.XXXXXX")
+        if ! rewrite_settings_without_env "${settings_file}" "${tmp_file}"; then
+            rm -f "${tmp_file}"
+            die "Failed to rewrite ${settings_file}. Only valid JSON objects are supported."
+        fi
+
+        chmod 600 "${tmp_file}"
+        mv "${tmp_file}" "${settings_file}"
+        success "Removed top-level env from settings.json"
+    else
+        echo '{}' | atomic_write "${settings_file}"
+        success "Created new settings.json"
     fi
-    
-    # 创建新的空 settings.json
-    echo '{}' | atomic_write "${settings_file}"
-    success "Created new settings.json"
     
     # 清理旧备份（保留最近 5 个）
     local backups
@@ -242,7 +392,7 @@ cmd_init() {
     echo ""
     info "Claude Code will now use shell environment variables."
     info "Use 'ccp add <profile>' to create a profile."
-    info "Use 'ccp <profile>' to switch profiles."
+    info "Use 'ccc <profile>' to launch Claude Code with a profile."
 }
 
 #############################################
@@ -369,9 +519,9 @@ cmd_status() {
     echo ""
     
     if [[ -z "$current" ]]; then
-        echo -e "  Current profile: ${YELLOW}none${NC}"
+        echo -e "  Last launched profile: ${YELLOW}none${NC}"
     else
-        echo -e "  Current profile: ${GREEN}${current}${NC}"
+        echo -e "  Last launched profile: ${GREEN}${current}${NC}"
         
         local env_file
         env_file=$(env_file_path "$current")
@@ -392,27 +542,6 @@ cmd_status() {
     echo "  Total profiles: ${count}"
     echo "  Config directory: ${CCP_DIR}"
     echo ""
-}
-
-cmd_switch() {
-    local profile="${1:-}"
-    
-    [[ -z "$profile" ]] && die "Profile name required"
-    
-    if ! profile_exists "$profile"; then
-        die "Profile '${profile}' does not exist. Use 'ccp list' to see available profiles."
-    fi
-    
-    # 读取并输出 export 语句
-    if ! read_env_file "$profile"; then
-        die "Failed to read profile '${profile}'"
-    fi
-    
-    # 更新 current
-    set_current_profile "$profile"
-    
-    # 输出状态到 stderr
-    echo -e "${GREEN}Switched to profile: ${profile}${NC}" >&2
 }
 
 cmd_set_env() {
@@ -553,23 +682,23 @@ cmd_show_env() {
 
 show_help() {
     cat << 'EOF'
-Claude Code Profile Switcher (CCP) 2.0
+Claude Code Profile Switcher (CCP) 3.0.0
 
 USAGE:
-    ccp <profile>              Switch to specified profile
     ccp add <name>             Add a new profile (interactive)
     ccp remove <name>          Remove a profile
     ccp list                   List all profiles
     ccp status                 Show current status
     ccp set-env <profile> <VAR> <value>   Set custom env var
     ccp unset-env <profile> <VAR>         Remove custom env var
-    ccp show-env <profile>       Show env vars for profile
+    ccp show-env <profile>     Show env vars for profile
     ccp init                   Initialize Claude Code settings
+    ccc <profile>              Launch Claude Code with profile
     ccp help                   Show this help
 
 CONFIG LOCATION:
     ~/.ccp/profiles/            Profile .env files
-    ~/.ccp/current              Current profile name
+    ~/.ccp/current              Last launched profile name
 
 ENV FILE FORMAT:
     # CCP Profile: <name>
@@ -617,12 +746,7 @@ main() {
             cmd_init
             ;;
         *)
-            # 尝试作为 profile 名切换
-            if is_valid_profile_name "$cmd"; then
-                cmd_switch "$cmd"
-            else
-                die "Unknown command: $cmd. Use 'ccp help' for usage."
-            fi
+            die "Unknown command: ${cmd}. Use 'ccp help' for usage."
             ;;
     esac
 }

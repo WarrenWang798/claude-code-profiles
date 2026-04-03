@@ -1,12 +1,12 @@
 # Contributing to CCP
 
-CCP is a pure Bash CLI for managing multiple Claude Code API configurations. It has zero external dependencies and runs on Bash 3.2+ (macOS default).
+CCP is a pure Bash CLI for managing Claude Code launch profiles. It has zero external dependencies and runs on Bash 3.2+ (macOS default).
 
 ## Development Setup
 
 ```bash
-git clone https://github.com/your-repo/ccp.git
-cd ccp
+git clone https://github.com/WarrenWang798/claude-code-profiles.git
+cd claude-code-profiles
 ```
 
 That's it. No build step, no npm install, no pip install. Just clone and run.
@@ -21,10 +21,10 @@ bash tests/test_ccp.sh
 
 ## Linting
 
-We use shellcheck:
+We use `shellcheck` when available:
 
 ```bash
-shellcheck ccp.sh ccc install.sh uninstall.sh
+shellcheck -e SC1091 ccp.sh ccc install.sh uninstall.sh
 ```
 
 ## Code Conventions
@@ -40,14 +40,17 @@ Inline comments should be in Chinese (中文). This is a project convention.
 - No namerefs (`declare -n`)
 - POSIX awk only, no gawk extensions
 
-### JSON Operations
+### Profile and settings handling
 
-All JSON read/write operations go through internal `_json_*` functions. Do not add external JSON tools.
+- Profiles live in `~/.ccp/profiles/*.env`
+- `ccc` reads one `.env` file directly and validates required keys before launch
+- `ccp init` only rewrites `~/.claude/settings.json` to remove the top-level `env` key
+- Do not add external JSON tools or general-purpose config migrations
 
 ### Security
 
 - Validate env var keys: must match `^[A-Za-z_][A-Za-z0-9_]*$`
-- Escape values before export: use `printf '%q'`
+- Keep launches process-local: do not reintroduce `eval "$(ccp <profile>)"` or shell-switch flows
 - Never print API keys in full: use `mask_token`
 
 ## Pull Request Process

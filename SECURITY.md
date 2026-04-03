@@ -4,7 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| v2.0.x  | :white_check_mark: |
+| v3.0.x  | :white_check_mark: |
+| v2.0.x  | :x:                |
 | v1.x    | :x:                |
 
 ## Reporting a Vulnerability
@@ -28,7 +29,8 @@ CCP follows these principles to minimize attack surface:
 
 - **No external dependencies** — Pure Bash + POSIX awk only
 - **Env var key validation** — Keys must match `^[A-Za-z_][A-Za-z0-9_]*$`
-- **Shell-escaped exports** — Values are properly quoted before eval
-- **Config file permissions** — `~/.ccp_profiles.json` set to mode 600
+- **Process-local launches only** — `ccc` injects env into the spawned `claude` process with `exec env`; it does not mutate the caller shell
+- **Config file permissions** — Profile `.env` files and `~/.ccp/current` are written with mode 600
+- **Narrow settings rewrite** — `ccp init` removes only the top-level `env` key from `~/.claude/settings.json`
 - **No secrets in history** — API key input uses `read -sp` (hidden)
 - **Strict mode** — `set -euo pipefail` catches errors early

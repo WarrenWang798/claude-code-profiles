@@ -11,7 +11,7 @@ set -euo pipefail
 #   CCP_REPO    — 自定义 GitHub 仓库（默认 WarrenWang798/claude-code-profiles）
 #   CCP_BRANCH  — 自定义分支（默认 main）
 
-CCP_VERSION="2.0.0"
+CCP_VERSION="3.0.0"
 
 # GitHub 仓库信息（用户可通过环境变量覆盖）
 REPO="${CCP_REPO:-WarrenWang798/claude-code-profiles}"
@@ -19,6 +19,7 @@ BRANCH="${CCP_BRANCH:-main}"
 RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
 INSTALL_DIR="${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}"
+BIN_DIR="${HOME}/.local/bin"
 DEST_SCRIPT_PATH="$INSTALL_DIR/ccp.sh"
 DEST_CCC_PATH="$INSTALL_DIR/ccc"
 DEST_INIT_PATH="$INSTALL_DIR/ccp-init.sh"
@@ -105,59 +106,6 @@ remove_existing_block() {
     fi
 }
 
-# 写入独立的 shell 初始化脚本（避免向 rc 注入大段代码）
-write_init_script() {
-    cat > "$DEST_INIT_PATH" << 'INIT_EOF'
-#!/usr/bin/env bash
-# CCP shell init: 定义 ccp/ccc 函数
-
-unalias ccp 2>/dev/null || true
-unset -f ccp 2>/dev/null || true
-ccp() {
-    local script="${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}/ccp.sh"
-    if [[ ! -f "$script" ]]; then
-        echo "ccp error: script not found at $script" >&2
-        return 1
-    fi
-
-    case "${1:-}" in
-        ""|"help"|"-h"|"--help"|"status"|"st"|"list"|"ls"|"add"|"remove"|"rm"|"set-env"|"unset-env"|"show-env"|"init")
-            "$script" "$@"
-            ;;
-        *)
-            eval "$("$script" "$@")"
-            ;;
-    esac
-}
-
-unalias ccc 2>/dev/null || true
-unset -f ccc 2>/dev/null || true
-ccc() {
-    local launcher="${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}/ccc"
-    if [[ ! -x "$launcher" ]]; then
-        echo "ccc error: launcher not found at $launcher" >&2
-        return 1
-    fi
-    "$launcher" "$@"
-}
-INIT_EOF
-    chmod +x "$DEST_INIT_PATH"
-}
-
-# 仅向 rc 追加极简 source 引导块
-append_source_block() {
-    local rc="$1"
-    mkdir -p "$(dirname "$rc")"
-    [[ -f "$rc" ]] || touch "$rc"
-    cat >> "$rc" << 'BLOCK_EOF'
-# >>> ccp init begin >>>
-if [[ -f "${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}/ccp-init.sh" ]]; then
-    source "${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}/ccp-init.sh"
-fi
-# <<< ccp init end <<<
-BLOCK_EOF
-}
-
 main() {
     echo ""
     echo -e "${BLUE}Claude Code Profile Switcher (CCP) v${CCP_VERSION}${NC}"
@@ -165,6 +113,7 @@ main() {
 
     # 1. 创建安装目录
     mkdir -p "$INSTALL_DIR"
+    mkdir -p "$BIN_DIR"
 
     # 2. 获取 ccp.sh / ccc
     if [[ "$IS_LOCAL" == "true" ]]; then
@@ -178,30 +127,38 @@ main() {
     fi
     chmod +x "$DEST_SCRIPT_PATH"
     chmod +x "$DEST_CCC_PATH"
-    write_init_script
 
-    # 3. 注入 shell 引导块（先清理旧版函数大块）
+    # 3. 清理历史 rc 注入块
     local rc
     rc="$(detect_rc_file)"
     remove_existing_block "$rc" "$OLD_BEGIN_MARK" "$OLD_END_MARK"
     remove_existing_block "$rc" "$BEGIN_MARK" "$END_MARK"
-    append_source_block "$rc"
+    rm -f "$DEST_INIT_PATH"
 
-    # 4. 完成
+    # 4. 创建命令链接
+    ln -sfn "$DEST_SCRIPT_PATH" "$BIN_DIR/ccp"
+    ln -sfn "$DEST_CCC_PATH" "$BIN_DIR/ccc"
+
+    # 5. 完成
     echo ""
     ok "已安装 ccp 和 ccc 到: $INSTALL_DIR"
     echo "   主脚本: $DEST_SCRIPT_PATH"
     echo "   启动器: $DEST_CCC_PATH"
-    echo "   初始化脚本: $DEST_INIT_PATH"
-    echo "   rc 引导块: $rc"
-    echo ""
-    info "重载 shell:"
-    echo "   source $rc"
+    echo "   命令链接: $BIN_DIR/ccp, $BIN_DIR/ccc"
     echo ""
     info "开始使用:"
     echo "   ccp add work       # 添加 profile"
     echo "   ccp list           # 列出 profile"
-    echo "   ccc work           # 切换并启动 Claude Code"
+    echo "   ccc work           # 以 profile 启动 Claude Code"
+    echo ""
+
+    case ":${PATH:-}:" in
+        *":${BIN_DIR}:"*)
+            ;;
+        *)
+            warn "${BIN_DIR} 不在 PATH 中，请手动加入 shell PATH"
+            ;;
+    esac
     echo ""
 }
 

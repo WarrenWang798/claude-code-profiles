@@ -4,6 +4,7 @@ set -euo pipefail
 # Uninstaller for Claude Code Profile Switcher (CCP)
 
 INSTALL_DIR="${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}"
+BIN_DIR="${HOME}/.local/bin"
 BEGIN_MARK="# >>> ccp init begin >>>"
 END_MARK="# <<< ccp init end <<<"
 OLD_BEGIN_MARK="# >>> ccp function begin >>>"
@@ -49,6 +50,8 @@ main() {
     remove_function_block "$rc" "$OLD_BEGIN_MARK" "$OLD_END_MARK"
     remove_function_block "$rc" "$BEGIN_MARK" "$END_MARK"
 
+    rm -f "$BIN_DIR/ccp" "$BIN_DIR/ccc"
+
     if [[ -d "$INSTALL_DIR" ]]; then
         rm -rf "$INSTALL_DIR"
         echo "Removed $INSTALL_DIR"
@@ -60,7 +63,7 @@ main() {
     echo "Note: Config directory preserved at ~/.ccp"
     echo "      Delete manually if not needed: rm -rf ~/.ccp"
     echo ""
-    echo "Reload your shell: source $rc"
+    echo "No new rc block is installed in CCP 3.0."
 }
 
 main "$@"

@@ -1,4 +1,4 @@
-# Claude Code Profile Switcher (CCP) 2.0
+# Claude Code Profile Switcher (CCP) 3.0
 
 > Pure Bash profile management for Claude Code. **.env file based**, zero dependencies, terminal-native isolation.
 
@@ -11,26 +11,26 @@
 
 ---
 
-## 🚀 What's New in 2.0
+## What's New in 3.0
 
-- **.env file based storage** — Simple, human-readable, editable
-- **Zero JSON parsing** — No complex awk scripts
-- **Simplified init** — Just backup and reset
-- **Better ccc launcher** — 🚀 Launching Claude Code... display
+- `ccc` now reads profile `.env` files directly and launches `claude` with process-local env
+- `ccp <profile>` shell switching is removed
+- `ccp init` now removes only the top-level `env` key from `~/.claude/settings.json`
+- Install no longer injects new rc blocks; it creates `~/.local/bin/ccp` and `~/.local/bin/ccc`
 
 ---
 
 ## Why CCP?
 
-Other tools manage API endpoints. **CCP manages your entire terminal environment.**
+Other tools manage API endpoints. **CCP manages Claude Code launch environments without mutating your current shell.**
 
-**Per-profile env bundles** — Each profile carries arbitrary custom env vars (MODEL, TIMEOUT, FEATURE_FLAGS). Set `ANTHROPIC_MODEL=claude-sonnet-4` for work, `ANTHROPIC_MODEL=claude-opus-4` for personal. The only CLI tool that does this.
+**Per-profile env bundles** — Each profile carries arbitrary custom env vars (MODEL, TIMEOUT, FEATURE_FLAGS). Set `ANTHROPIC_MODEL=claude-sonnet-4` for work and `ANTHROPIC_MODEL=claude-opus-4` for personal.
 
-**Terminal-native isolation** — Pure env var exports via `stdout`, status messages via `stderr`. Each terminal gets its own environment. No global config pollution, no accidental cross-talk between sessions.
+**Process-local isolation** — `ccc` reads one profile and starts one `claude` process with `exec env ...`. No `eval`, no shell pollution, no accidental cross-talk between sessions.
 
-**Truly zero dependencies** — Pure Bash 3.2. No Python, no Node, no jq. Works on stock macOS out of the box. Single ~600 line script you can audit in 15 minutes.
+**Truly zero dependencies** — Pure Bash 3.2. No Python, no Node, no jq. Works on stock macOS out of the box.
 
-**Auditable simplicity** — For security-conscious developers managing API keys: one file, no external calls, readable source. Know exactly what runs when you switch profiles.
+**Auditable simplicity** — For security-conscious developers managing API keys: one file format, no external calls, readable source. Know exactly what runs when you launch Claude Code with a profile.
 
 ---
 
@@ -39,9 +39,11 @@ Other tools manage API endpoints. **CCP manages your entire terminal environment
 ```bash
 # One-line install (recommended)
 curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
-source ~/.zshrc  # or ~/.bashrc
 
-# Initialize (one-time, clears conflicting settings)
+# Make sure ~/.local/bin is in PATH
+export PATH="$HOME/.local/bin:$PATH"
+
+# Initialize (one-time, removes only the conflicting top-level `env` key)
 ccp init
 
 # Add your first profile
@@ -55,7 +57,7 @@ ccc work
 
 ## New .env Format
 
-CCP 2.0 uses simple `.env` files instead of JSON:
+CCP 3.0 uses simple `.env` files instead of JSON:
 
 ```bash
 # ~/.ccp/profiles/work.env
@@ -79,12 +81,12 @@ API_TIMEOUT_MS=600000
 
 | Command | Description |
 |---------|-------------|
-| `ccc <profile>` | **Switch profile and launch Claude Code** |
-| `ccp <profile>` | Switch to profile (sets env vars) |
+| `ccc <profile>` | **Launch Claude Code with a profile** |
+| `ccc env <profile>` | Compatibility alias for `ccc <profile>` |
 | `ccp add <name>` | Add/update profile (interactive) |
 | `ccp remove <name>` | Remove a profile |
 | `ccp list` | List all profiles |
-| `ccp status` | Show current configuration |
+| `ccp status` | Show current configuration and last launched profile |
 | `ccp set-env <profile> <VAR> <value>` | Set custom env var |
 | `ccp unset-env <profile> <VAR>` | Remove custom env var |
 | `ccp show-env <profile>` | Show all env vars for profile |
@@ -101,14 +103,26 @@ API_TIMEOUT_MS=600000
 │   ├── work.env          # Profile definitions
 │   ├── personal.env
 │   └── ...
-└── current               # Current profile name
+└── current               # Last launched profile name
 ```
+
+---
+
+## Migration from CCP 2.x
+
+CCP 3.0 changes how launching works:
+
+- `ccp <profile>` is removed
+- `ccc <profile>` is now the only launcher
+- new installs do not inject shell functions into rc files
+
+Existing legacy rc blocks are cleaned up automatically by `install.sh` and `uninstall.sh`.
 
 ---
 
 ## Migration from CCP 1.x
 
-CCP 2.0 is **not backward compatible** with 1.x profiles. You need to recreate your profiles:
+CCP 3.0 is **not backward compatible** with 1.x profiles. You need to recreate your profiles:
 
 ```bash
 # Old profiles were in ~/.ccp_profiles.json
@@ -155,10 +169,10 @@ cd claude-code-profiles
 ./install.sh
 ```
 
-Then reload your shell:
+Then make sure `~/.local/bin` is in your `PATH`:
 
 ```bash
-source ~/.zshrc  # or ~/.bashrc
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### What Gets Installed
@@ -166,9 +180,9 @@ source ~/.zshrc  # or ~/.bashrc
 ```
 ~/.local/share/ccp/ccp.sh    # Main script
 ~/.local/share/ccp/ccc       # Launcher script
-~/.local/share/ccp/ccp-init.sh # Shell init script (defines ccp/ccc)
+~/.local/bin/ccp            # Symlink to main script
+~/.local/bin/ccc            # Symlink to launcher
 ~/.ccp/profiles/              # Profile .env files (created on first use)
-~/.zshrc or ~/.bashrc        # Minimal source block (no large function injection)
 ```
 
 ### Uninstall
@@ -180,9 +194,6 @@ source ~/.zshrc  # or ~/.bashrc
 # If installed via curl (download uninstall script)
 curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/uninstall.sh | bash
 
-# Then reload shell
-source ~/.zshrc
-
 # Optional: remove config
 rm -rf ~/.ccp
 ```
@@ -192,22 +203,22 @@ rm -rf ~/.ccp
 ## How It Works
 
 ```
-ccp.sh outputs `export` statements to stdout and status messages to stderr.
-Your rc file loads `ccp-init.sh`, and the shell function `ccp()` uses `eval` to apply exports to the current shell.
-Each terminal gets its own environment — no global state, no file conflicts.
+`ccp` manages profile files under `~/.ccp/profiles`.
+`ccc` reads one `.env` file, validates required variables, updates `~/.ccp/current`, and starts `claude` with `exec env`.
+Only the launched `claude` process receives the profile environment.
 ```
 
 This architecture means:
-- Switching a profile only affects the current terminal
+- Launching a profile only affects the spawned `claude` process
 - Multiple terminals can run different profiles simultaneously
 - No lock files, no race conditions, no state sync issues
-- Closing a terminal cleans up automatically (env vars die with the shell)
+- No `eval` or shell-function dependency
 
 ---
 
 ## CCP vs Alternatives
 
-| Feature | CCP 2.0 | CCM | CCS |
+| Feature | CCP 3.0 | CCM | CCS |
 |---------|---------|-----|-----|
 | Storage format | **.env files** | JSON | JSON |
 | Custom env vars per profile | **Yes** | No | No |
@@ -216,9 +227,7 @@ This architecture means:
 | Built-in provider presets | No | 7+ | 17+ |
 | Proxy/routing features | No | No | Yes |
 | Web UI | No | No | Yes |
-| Lines of code | **~600** | ~400 | ~3000+ |
-
-**Choose CCP if:** You want predictable per-terminal env control, minimal footprint, auditable code, and .env file simplicity.
+**Choose CCP if:** You want predictable per-process Claude Code launches, minimal footprint, auditable code, and .env file simplicity.
 
 **Choose CCM if:** You need built-in provider presets and a simpler feature set.
 
@@ -240,14 +249,14 @@ ccc work
 
 ### Environment variables not applied
 
-Make sure to use the shell function (not direct script execution):
+Use `ccc`, not `ccp`, to launch Claude Code with a profile:
 
 ```bash
-# Correct (uses shell function)
-ccp work
+# Correct
+ccc work
 
-# Wrong (runs in subshell, exports lost)
-~/.local/share/ccp/ccp.sh work
+# Wrong: `ccp` is now management-only
+ccp work
 ```
 
 ### Permission denied

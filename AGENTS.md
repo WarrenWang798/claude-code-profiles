@@ -1,21 +1,21 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-02-28
-**Version:** 2.0.0
-**Branch:** (no git repo initialized)
+**Generated:** 2026-04-03
+**Version:** 3.0.0
+**Branch:** codex/review-glisteningsleepingbachmanmd
 
 ## OVERVIEW
 
-Claude Code Profile Switcher (CCP) — pure Bash + POSIX awk CLI for managing multiple Claude Code API configurations (base_url + api_key + custom env vars). Zero external dependencies. Switch profiles with `ccp`, launch Claude Code with `ccc`.
+Claude Code Profile Switcher (CCP) — pure Bash + POSIX awk CLI for managing Claude Code API profiles (`base_url`, `auth_token`, custom env vars). Zero external dependencies. `ccp` is management-only; `ccc` launches Claude Code with one profile in a child process.
 
 ## STRUCTURE
 
 ```
 ./
-├── ccp.sh                        # Core logic: JSON engine + profile CRUD + switching (~1190 lines)
-├── ccc                           # Launcher: switches profile then `exec claude` (63 lines)
-├── install.sh                    # Installs ccp.sh to ~/.local/share/ccp/, injects shell functions
-├── uninstall.sh                  # Reverses install.sh — removes script + rc block
+├── ccp.sh                        # Profile CRUD, status, init, top-level env removal from settings.json
+├── ccc                           # Launcher: reads .env, validates required vars, exec env ... claude
+├── install.sh                    # Installs scripts, cleans legacy rc blocks, creates ~/.local/bin symlinks
+├── uninstall.sh                  # Removes install dir/symlinks, cleans legacy rc blocks
 ├── README.md                     # English docs
 ├── README_CN.md                  # Chinese docs
 ├── CHANGELOG.md                  # Version history
@@ -23,66 +23,59 @@ Claude Code Profile Switcher (CCP) — pure Bash + POSIX awk CLI for managing mu
 ├── CONTRIBUTING.md               # Contribution guidelines
 ├── LICENSE                       # MIT
 ├── .gitignore
-├── tests/
-│   └── test_ccp.sh              # Test suite (26 tests)
-└── .github/
-    └── workflows/
-        └── ci.yml               # Shellcheck + tests on Linux/macOS
+└── tests/
+    └── test_ccp.sh               # Shell regression suite for launcher/init/install flows
 ```
 
 ## WHERE TO LOOK
 
 | Task | File | Notes |
 |------|------|-------|
-| JSON read/write engine | `ccp.sh` → `_json_core()` | Single awk script handles all JSON ops |
-| Atomic file writes | `ccp.sh` → `_atomic_write()` | Temp file + mv pattern |
-| Security validators | `ccp.sh` → `_is_valid_env_key()`, `_shell_quote()` | Used at all export boundaries |
-| Add/remove/list profiles | `ccp.sh` → `add_profile`, `remove_profile`, `list_profiles` | Interactive prompts in `add_profile` |
-| Switch profile (env export) | `ccp.sh` → `switch_profile` | Outputs `export` statements to stdout, status to stderr |
-| Custom env vars per profile | `ccp.sh` → `set_env_var`, `unset_env_var`, `show_env_vars` | Pure awk, no external deps |
-| Launch Claude Code | `ccc` | Calls `ccp.sh` via `eval`, then `exec claude` |
-| Shell integration | `install.sh` → `append_function_block` | Injected between `>>> ccp function begin >>>` markers |
-| Clear conflicting settings | `ccp.sh` → `init_claude_env` | Removes `env` key from `~/.claude/settings.json` |
-| Tests | `tests/test_ccp.sh` | 26 tests: CRUD, security, round-trip, init |
+| Launch Claude Code with one profile | `ccc` | Reads `~/.ccp/profiles/<profile>.env`, validates required vars, updates `~/.ccp/current`, then `exec env ... claude` |
+| Add/remove/list profiles | `ccp.sh` | CRUD commands operate directly on `.env` files |
+| Custom env vars per profile | `ccp.sh` | `set-env`, `unset-env`, `show-env` |
+| Current profile metadata | `ccp.sh` + `ccc` | `~/.ccp/current` stores the last launched profile |
+| Clear conflicting Claude settings | `ccp.sh` → `cmd_init` | Removes only the top-level `env` key from `~/.claude/settings.json` |
+| Legacy shell cleanup on install | `install.sh` | Removes old rc blocks but does not inject new ones |
+| Uninstall cleanup | `uninstall.sh` | Removes symlinks/install dir and legacy rc blocks |
+| Tests | `tests/test_ccp.sh` | Covers launcher validation, init rewriting, install migration |
 
 ## CONVENTIONS
 
-- **Bilingual comments**: All inline comments in Chinese (中文). README has EN + CN versions.
-- **Pure awk JSON engine**: `_json_core()` is a single awk script that handles both reads and writes for CCP's fixed schema. No Python, no jq.
-- **Bash 3.2 compatibility**: No associative arrays (`declare -A`), no namerefs (`declare -n`). Uses indexed arrays only.
-- **POSIX awk only**: No gawk extensions. Must work with macOS default `/usr/bin/awk`.
-- **Profile switch via stdout**: `switch_profile` prints `export` statements to stdout, human-readable messages to stderr. Caller uses `eval "$(ccp <profile>)"`.
-- **Atomic writes**: All JSON mutations use temp file + `mv` for crash safety.
-- **Security at boundaries**: Env var keys validated with `_is_valid_env_key()`, values escaped with `_shell_quote()` before export generation.
-- **Config location**: `~/.ccp_profiles.json` (600 perms). NOT in repo.
-- **Env vars exported**: `ANTHROPIC_BASE_URL`, `ANTHROPIC_API_URL`, `ANTHROPIC_AUTH_TOKEN`. Explicitly `unset ANTHROPIC_API_KEY`.
+- **Bilingual comments**: Inline comments stay in Chinese (中文). README has EN + CN versions.
+- **Pure Bash + POSIX awk only**: No Python, no jq, no gawk-only features.
+- **Bash 3.2 compatibility**: No associative arrays (`declare -A`), no namerefs (`declare -n`).
+- **Profile storage**: Profiles live in `~/.ccp/profiles/*.env`.
+- **Launcher behavior**: `ccc` never uses `eval`; it injects env only into the spawned `claude` process.
+- **Current pointer semantics**: `~/.ccp/current` means "last launched profile", not "current shell profile".
+- **Atomic writes**: `current` and rewritten settings files use temp-file + `mv`.
+- **Security at boundaries**: Env var keys must match `^[A-Za-z_][A-Za-z0-9_]*$`.
+- **Auth variable policy**: Use `ANTHROPIC_AUTH_TOKEN`; explicitly unset `ANTHROPIC_API_KEY` when launching.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
-- **NEVER use Python3, jq, or any external dependency** — pure Bash + POSIX awk only.
-- **NEVER set `ANTHROPIC_API_KEY`** — use `ANTHROPIC_AUTH_TOKEN` only. API_KEY is explicitly unset.
-- **NEVER use `declare -A`** (associative arrays) — breaks Bash 3.2 on macOS.
-- **NEVER use `declare -n`** (namerefs) — breaks Bash 3.2 on macOS.
-- **NEVER store config in the repo** — `~/.ccp_profiles.json` lives in `$HOME`, contains secrets.
-- **NEVER print API keys in full** — always use `mask_token` (shows first 4 + last 4 chars).
-- **NEVER generate export statements without `_shell_quote()`** — prevents eval injection.
-- **NEVER accept env var keys without `_is_valid_env_key()`** — prevents command injection.
+- **NEVER use Python3, jq, or any external dependency**.
+- **NEVER reintroduce `eval "$(ccp <profile>)"` or any equivalent shell-switch flow**.
+- **NEVER set `ANTHROPIC_API_KEY`** — use `ANTHROPIC_AUTH_TOKEN` only.
+- **NEVER use `declare -A`** — breaks Bash 3.2 on macOS.
+- **NEVER use `declare -n`** — breaks Bash 3.2 on macOS.
+- **NEVER store config in the repo** — profile data stays under `$HOME/.ccp`.
+- **NEVER print API keys in full** — mask them in user-facing output.
+- **NEVER inject new rc blocks in install scripts** — only clean up legacy blocks.
+- **NEVER accept env var keys without validation** — prevents command injection.
 
 ## UNIQUE STYLES
 
-- Single awk script (`_json_core`) handles all JSON operations for a fixed schema — reads and writes.
-- `ccc` uses `exec claude` to replace the shell process (not a subprocess).
-- Install/uninstall use awk-based marker blocks for clean rc file management.
-- `_json_save_profile_with_env` receives array data via a temp file (NUL-safe transport for arbitrary values).
+- `ccc` uses `exec env ... claude` so the launcher process is replaced by Claude Code.
+- `cmd_init` is intentionally narrow: it deletes only the top-level `env` key from `settings.json`.
+- Install/uninstall still understand legacy marker blocks for migration, but 3.0 no longer writes new rc content.
 
 ## COMMANDS
 
 ```bash
-# No build step. Pure bash scripts.
-
 # Install
 ./install.sh
-source ~/.zshrc
+export PATH="$HOME/.local/bin:$PATH"
 
 # Test
 bash tests/test_ccp.sh
@@ -93,15 +86,14 @@ shellcheck -e SC1091 ccp.sh ccc install.sh uninstall.sh
 # Usage
 ccp add <name>          # Interactive profile creation
 ccp list                # List profiles
-ccp status              # Show current config
-ccc <profile>           # Switch + launch Claude Code
+ccp status              # Show current config and last launched profile
+ccc <profile>           # Launch Claude Code with profile
 ccp set-env <p> K V     # Set custom env var
 ```
 
 ## NOTES
 
-- `ccp init` clears `env` from `~/.claude/settings.json` — needed because Claude Code's settings.json can override shell env vars.
-- The `ccc` standalone script and the shell function `ccc()` do the same thing. Shell function is preferred.
-- Editor detection order in `edit_config`: cursor → code → open (macOS) → vim → nano.
+- `ccp init` backs up `~/.claude/settings.json` and removes only the top-level `env` key.
+- `ccc env <profile>` is kept as a compatibility alias for `ccc <profile>`.
 - API key input is hidden (`read -sp`) during `ccp add`.
-- All writes are atomic (temp file + mv) to prevent corruption from concurrent access.
+- All managed writes are atomic to reduce corruption risk.
