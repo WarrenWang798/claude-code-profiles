@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - `ccc list`, `ccc show`, and `ccc path` profile inspection commands.
 - `ccc import-cc-switch` and `ccc import-cc-switch --current` for one-shot CC Switch import.
 - Regression tests for complete settings pass-through, default settings preservation, and CC Switch import.
+- CC Switch import is idempotent for the same profile name and writes formatted JSON.
 
 ### Removed
 - `ccp.sh`, `ccp add`, `ccp set-env`, `ccp unset-env`, `ccp show-env`, and `ccp init`.

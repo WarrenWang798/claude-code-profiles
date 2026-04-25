@@ -69,6 +69,7 @@ ccc import-cc-switch --current
 ```
 
 导入是一次性复制，不会修改 CC Switch，也不会和 CC Switch 保持实时同步。
+重复执行导入会覆盖同名 CCC profile，不会继续生成 `-2` / `-3` 副本。导入写入的 JSON 会格式化，便于直接阅读。
 
 ### 2. 查看 Profiles
 
@@ -181,6 +182,7 @@ CC Switch 导入读取：
 ```
 
 它会把 `app_type='claude'` 的 `providers.settings_config` 复制成 CCC profile JSON 文件。不会修改 CC Switch 数据库。
+重复导入对同名 profile 是幂等刷新，会更新已有 JSON 文件。
 
 ## 安装
 

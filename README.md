@@ -69,6 +69,7 @@ ccc import-cc-switch --current
 ```
 
 The import is a one-time copy. It does not modify CC Switch and it does not keep live sync.
+Running the import again overwrites the same CCC profile name instead of creating duplicate `-2` / `-3` copies. Imported JSON is formatted for readability.
 
 ### 2. Check Profiles
 
@@ -181,6 +182,7 @@ CC Switch import reads:
 ```
 
 It copies `providers.settings_config` where `app_type='claude'` into CCC profile JSON files. It does not modify the CC Switch database.
+Repeated imports are idempotent for the same profile names and refresh the existing JSON files.
 
 ## Install
 

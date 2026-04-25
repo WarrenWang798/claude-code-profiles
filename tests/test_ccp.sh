@@ -244,6 +244,17 @@ test_import_cc_switch_all() {
     assert_contains "$out" "Imported: 七牛 work -> work-2" "imports non-ascii provider with sanitized fallback"
     assert_contains "$(cat "$TMP_HOME/.ccc/profiles/work-one.json")" "https://work.example.com" "writes imported provider settings"
     assert_contains "$(cat "$TMP_HOME/.ccc/profiles/work-2.json")" "https://qiniu.example.com" "writes sanitized non-ascii provider settings"
+    assert_contains "$(cat "$TMP_HOME/.ccc/profiles/work-one.json")" $'\n  "env": {\n' "formats imported json for readability"
+
+    printf '%s\n' '{"stale":true}' > "$TMP_HOME/.ccc/profiles/work-one.json"
+    out=$(run_ccc import-cc-switch)
+    assert_contains "$out" "Imported: Work One -> work-one" "repeat import overwrites same profile"
+    assert_contains "$(cat "$TMP_HOME/.ccc/profiles/work-one.json")" "https://work.example.com" "repeat import refreshes profile content"
+    if [[ ! -f "$TMP_HOME/.ccc/profiles/work-one-2.json" ]]; then
+        pass "repeat import does not create duplicate profile"
+    else
+        fail "repeat import should not create duplicate profile"
+    fi
 }
 
 test_import_cc_switch_current() {

@@ -97,6 +97,111 @@ unique_profile_name() {
     printf '%s' "$candidate"
 }
 
+has_import_name_loss() {
+    local stripped
+    stripped=$(printf '%s' "$1" | sed "s/[A-Za-z0-9._[:space:]-]//g")
+    [[ -n "$stripped" ]]
+}
+
+stable_import_profile_name() {
+    local raw="$1"
+    local base
+    local candidate
+    local index=2
+
+    base="$(sanitize_profile_name "$raw")"
+
+    if [[ ! -e "$(profile_file_path "$base")" ]]; then
+        printf '%s' "$base"
+        return
+    fi
+
+    # 含非 ASCII 或特殊字符的 provider 名可能被压缩成已有短名称。
+    # 这种情况下保留历史 fallback 命名，并在重复导入时稳定覆盖同一个 fallback 文件。
+    if has_import_name_loss "$raw"; then
+        while true; do
+            candidate="${base}-${index}"
+            if [[ -e "$(profile_file_path "$candidate")" ]]; then
+                printf '%s' "$candidate"
+                return
+            fi
+            printf '%s' "$candidate"
+            return
+        done
+    fi
+
+    printf '%s' "$base"
+}
+
+format_json() {
+    awk '
+        function indent(level,    text, i) {
+            text = ""
+            for (i = 0; i < level; i++) {
+                text = text "  "
+            }
+            return text
+        }
+
+        BEGIN {
+            level = 0
+            in_string = 0
+            escape = 0
+            out = ""
+        }
+
+        {
+            for (i = 1; i <= length($0); i++) {
+                ch = substr($0, i, 1)
+
+                if (in_string) {
+                    out = out ch
+                    if (escape) {
+                        escape = 0
+                    } else if (ch == "\\") {
+                        escape = 1
+                    } else if (ch == "\"") {
+                        in_string = 0
+                    }
+                    continue
+                }
+
+                if (ch ~ /[[:space:]]/) {
+                    continue
+                }
+
+                if (ch == "\"") {
+                    out = out ch
+                    in_string = 1
+                } else if (ch == "{" || ch == "[") {
+                    print out ch
+                    level++
+                    out = indent(level)
+                } else if (ch == "}" || ch == "]") {
+                    if (out !~ /^[ ]*$/) {
+                        print out
+                    }
+                    level--
+                    out = indent(level) ch
+                } else if (ch == ",") {
+                    print out ch
+                    out = indent(level)
+                } else if (ch == ":") {
+                    out = out ": "
+                } else {
+                    out = out ch
+                }
+            }
+        }
+
+        END {
+            if (out !~ /^[ ]*$/) {
+                print out
+            }
+        }
+    '
+}
+
 validate_json_object() {
     local file="$1"
 
@@ -217,9 +322,9 @@ import_cc_switch() {
     while IFS=$'\t' read -r name config || [[ -n "$name$config" ]]; do
         [[ -z "$name" || -z "$config" ]] && continue
 
-        profile=$(unique_profile_name "$(sanitize_profile_name "$name")")
+        profile=$(stable_import_profile_name "$name")
         target=$(profile_file_path "$profile")
-        printf '%s\n' "$config" | atomic_write "$target"
+        printf '%s\n' "$config" | format_json | atomic_write "$target"
 
         if ! validate_json_object "$target"; then
             rm -f "$target"
