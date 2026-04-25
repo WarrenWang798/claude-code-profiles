@@ -10,27 +10,16 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in CCP, please open a private GitHub security advisory or a regular GitHub issue with the title prefixed `[SECURITY]`.
-
-### What to Include
-
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Suggested fix (if any)
-
-### Response Timeline
-
-We aim to acknowledge reports within 72 hours and provide a fix or mitigation within 7 days for confirmed vulnerabilities.
+If you discover a security vulnerability in CCC, please open a private GitHub security advisory or a regular GitHub issue with the title prefixed `[SECURITY]`.
 
 ## Security Design Principles
 
-CCP follows these principles to minimize attack surface:
+CCC follows these principles to minimize attack surface:
 
-- **No external dependencies** — Pure Bash + POSIX awk only
-- **Env var key validation** — Keys must match `^[A-Za-z_][A-Za-z0-9_]*$`
-- **Process-local launches only** — `ccc` injects env into the spawned `claude` process with `exec env`; it does not mutate the caller shell
-- **Config file permissions** — Profile `.env` files and `~/.ccp/current` are written with mode 600
-- **Narrow settings rewrite** — `ccp init` removes only the top-level `env` key from `~/.claude/settings.json`
-- **No secrets in history** — API key input uses `read -sp` (hidden)
-- **Strict mode** — `set -euo pipefail` catches errors early
+- **No default settings mutation** — CCC never writes `~/.claude/settings.json`.
+- **No CC Switch mutation** — import reads `~/.cc-switch/cc-switch.db` and writes only CCC profiles.
+- **Process-local launch** — `ccc` launches `claude --setting-sources "" --settings <profile.json>` for one process.
+- **No default source leakage** — default user/project/local settings are disabled for the spawned Claude process.
+- **Config file permissions** — imported profile files and `~/.ccc/current` are written with mode 600.
+- **No broad dependencies** — pure Bash + POSIX awk; only `import-cc-switch` requires `sqlite3`.
+- **No secrets in status output** — `show` prints metadata only, not profile JSON contents.

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Uninstaller for Claude Code Profile Switcher (CCP)
+# Uninstaller for Claude Code Commander (CCC)
 
-INSTALL_DIR="${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}"
+INSTALL_DIR="${CCC_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccc}"
 BIN_DIR="${HOME}/.local/bin"
 BEGIN_MARK="# >>> ccp init begin >>>"
 END_MARK="# <<< ccp init end <<<"
@@ -43,7 +43,7 @@ remove_function_block() {
 }
 
 main() {
-    echo "Uninstalling CCP..."
+    echo "Uninstalling CCC..."
 
     local rc
     rc="$(detect_rc_file)"
@@ -58,12 +58,12 @@ main() {
     fi
 
     echo ""
-    echo "✅ CCP uninstalled"
+    echo "✅ CCC uninstalled"
     echo ""
-    echo "Note: Config directory preserved at ~/.ccp"
-    echo "      Delete manually if not needed: rm -rf ~/.ccp"
+    echo "Note: Config directory preserved at ~/.ccc"
+    echo "      Delete manually if not needed: rm -rf ~/.ccc"
     echo ""
-    echo "No new rc block is installed in CCP 3.0."
+    echo "No rc block is installed by CCC."
 }
 
 main "$@"

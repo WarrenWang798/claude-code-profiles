@@ -1,26 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Claude Code Profile Switcher (CCP) — 安装脚本
+# Claude Code Commander (CCC) — 安装脚本
 # 支持两种安装方式:
 #   本地: git clone 后运行 ./install.sh
 #   远程: curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
 #
 # 环境变量:
-#   CCP_DIR     — 自定义安装目录（默认 ~/.local/share/ccp）
-#   CCP_REPO    — 自定义 GitHub 仓库（默认 WarrenWang798/claude-code-profiles）
-#   CCP_BRANCH  — 自定义分支（默认 main）
+#   CCC_DIR     — 自定义安装目录（默认 ~/.local/share/ccc）
+#   CCC_REPO    — 自定义 GitHub 仓库（默认 WarrenWang798/claude-code-profiles）
+#   CCC_BRANCH  — 自定义分支（默认 main）
 
-CCP_VERSION="3.0.0"
+CCC_VERSION="3.0.0"
 
 # GitHub 仓库信息（用户可通过环境变量覆盖）
-REPO="${CCP_REPO:-WarrenWang798/claude-code-profiles}"
-BRANCH="${CCP_BRANCH:-main}"
+REPO="${CCC_REPO:-${CCP_REPO:-WarrenWang798/claude-code-profiles}}"
+BRANCH="${CCC_BRANCH:-${CCP_BRANCH:-main}}"
 RAW_BASE="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
-INSTALL_DIR="${CCP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccp}"
+INSTALL_DIR="${CCC_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/ccc}"
 BIN_DIR="${HOME}/.local/bin"
-DEST_SCRIPT_PATH="$INSTALL_DIR/ccp.sh"
 DEST_CCC_PATH="$INSTALL_DIR/ccc"
 DEST_INIT_PATH="$INSTALL_DIR/ccp-init.sh"
 BEGIN_MARK="# >>> ccp init begin >>>"
@@ -28,11 +27,11 @@ END_MARK="# <<< ccp init end <<<"
 OLD_BEGIN_MARK="# >>> ccp function begin >>>"
 OLD_END_MARK="# <<< ccp function end <<<"
 
-# 检测本地是否有 ccp.sh（判断是本地安装还是远程安装）
+# 检测本地是否有 ccc（判断是本地安装还是远程安装）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
-LOCAL_CCP="${SCRIPT_DIR:+$SCRIPT_DIR/ccp.sh}"
+LOCAL_CCC="${SCRIPT_DIR:+$SCRIPT_DIR/ccc}"
 IS_LOCAL=false
-if [[ -n "$LOCAL_CCP" && -f "$LOCAL_CCP" ]]; then
+if [[ -n "$LOCAL_CCC" && -f "$LOCAL_CCC" ]]; then
     IS_LOCAL=true
 fi
 
@@ -108,24 +107,21 @@ remove_existing_block() {
 
 main() {
     echo ""
-    echo -e "${BLUE}Claude Code Profile Switcher (CCP) v${CCP_VERSION}${NC}"
+    echo -e "${BLUE}Claude Code Commander (CCC) v${CCC_VERSION}${NC}"
     echo ""
 
     # 1. 创建安装目录
     mkdir -p "$INSTALL_DIR"
     mkdir -p "$BIN_DIR"
 
-    # 2. 获取 ccp.sh / ccc
+    # 2. 获取 ccc
     if [[ "$IS_LOCAL" == "true" ]]; then
         info "本地安装 (从 $SCRIPT_DIR)"
-        cp -f "$LOCAL_CCP" "$DEST_SCRIPT_PATH"
         cp -f "$SCRIPT_DIR/ccc" "$DEST_CCC_PATH"
     else
         info "远程安装 (从 github.com/${REPO})"
-        download "${RAW_BASE}/ccp.sh" "$DEST_SCRIPT_PATH"
         download "${RAW_BASE}/ccc" "$DEST_CCC_PATH"
     fi
-    chmod +x "$DEST_SCRIPT_PATH"
     chmod +x "$DEST_CCC_PATH"
 
     # 3. 清理历史 rc 注入块
@@ -136,20 +132,19 @@ main() {
     rm -f "$DEST_INIT_PATH"
 
     # 4. 创建命令链接
-    ln -sfn "$DEST_SCRIPT_PATH" "$BIN_DIR/ccp"
+    rm -f "$BIN_DIR/ccp"
     ln -sfn "$DEST_CCC_PATH" "$BIN_DIR/ccc"
 
     # 5. 完成
     echo ""
-    ok "已安装 ccp 和 ccc 到: $INSTALL_DIR"
-    echo "   主脚本: $DEST_SCRIPT_PATH"
+    ok "已安装 ccc 到: $INSTALL_DIR"
     echo "   启动器: $DEST_CCC_PATH"
-    echo "   命令链接: $BIN_DIR/ccp, $BIN_DIR/ccc"
+    echo "   命令链接: $BIN_DIR/ccc"
     echo ""
     info "开始使用:"
-    echo "   ccp add work       # 添加 profile"
-    echo "   ccp list           # 列出 profile"
-    echo "   ccc work           # 以 profile 启动 Claude Code"
+    echo "   ccc import-cc-switch  # 从 CC Switch 导入 Claude profiles"
+    echo "   ccc list              # 列出 profiles"
+    echo "   ccc work              # 以 profile 启动 Claude Code"
     echo ""
 
     case ":${PATH:-}:" in

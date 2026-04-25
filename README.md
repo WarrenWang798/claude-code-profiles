@@ -1,287 +1,213 @@
-# Claude Code Profile Switcher (CCP) 3.0
+# Claude Code Commander (CCC)
 
-> Pure Bash profile management for Claude Code. **.env file based**, zero dependencies, terminal-native isolation.
+> Launch Claude Code with isolated, per-profile settings JSON. `ccc` never mutates `~/.claude/settings.json`.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Bash](https://img.shields.io/badge/Shell-Bash%203.2%2B-green.svg)](https://www.gnu.org/software/bash/)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux-blue.svg)](https://github.com/WarrenWang798/claude-code-profiles)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-purple.svg)](https://claude.ai/code)
+## Why CCC
 
-[English](README.md) | [中文文档](README_CN.md)
+`ccc` is a small Bash launcher for running Claude Code with a specific settings file:
 
----
+```bash
+ccc work --resume abc123
+```
 
-## What's New in 3.0
+It resolves `work` to:
 
-- `ccc` now reads profile `.env` files directly and launches `claude` with process-local env
-- `ccp <profile>` shell switching is removed
-- `ccp init` now removes only the top-level `env` key from `~/.claude/settings.json`
-- Install no longer injects new rc blocks; it creates `~/.local/bin/ccp` and `~/.local/bin/ccc`
+```text
+~/.ccc/profiles/work.json
+```
 
----
+Then starts Claude Code with:
 
-## Why CCP?
+```bash
+claude --setting-sources "" --settings ~/.ccc/profiles/work.json --resume abc123
+```
 
-Other tools manage API endpoints. **CCP manages Claude Code launch environments without mutating your current shell.**
-
-**Per-profile env bundles** — Each profile carries arbitrary custom env vars (MODEL, TIMEOUT, FEATURE_FLAGS). Set `ANTHROPIC_MODEL=claude-sonnet-4` for work and `ANTHROPIC_MODEL=claude-opus-4` for personal.
-
-**Process-local isolation** — `ccc` reads one profile and starts one `claude` process with `exec env ...`. No `eval`, no shell pollution, no accidental cross-talk between sessions.
-
-**Truly zero dependencies** — Pure Bash 3.2. No Python, no Node, no jq. Works on stock macOS out of the box.
-
-**Auditable simplicity** — For security-conscious developers managing API keys: one file format, no external calls, readable source. Know exactly what runs when you launch Claude Code with a profile.
-
----
+Direct `claude` launches continue to use your normal Claude configuration.
 
 ## Quick Start
 
 ```bash
-# One-line install (recommended)
-curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
-
-# Make sure ~/.local/bin is in PATH
+./install.sh
 export PATH="$HOME/.local/bin:$PATH"
 
-# Initialize (one-time, removes only the conflicting top-level `env` key)
-ccp init
+# Import Claude providers from CC Switch, if you use it
+ccc import-cc-switch
 
-# Add your first profile
-ccp add work
+# List available profiles
+ccc list
 
-# Launch Claude Code with profile
+# Launch Claude Code with one profile
+ccc work-one
+```
+
+## How to Use
+
+### 1. Import from CC Switch
+
+If you already maintain Claude providers in CC Switch:
+
+```bash
+ccc import-cc-switch
+```
+
+This reads:
+
+```text
+~/.cc-switch/cc-switch.db
+```
+
+and writes independent CCC profiles:
+
+```text
+~/.ccc/profiles/*.json
+```
+
+Import only the current CC Switch Claude provider:
+
+```bash
+ccc import-cc-switch --current
+```
+
+The import is a one-time copy. It does not modify CC Switch and it does not keep live sync.
+
+### 2. Check Profiles
+
+```bash
+ccc list
+ccc show work-one
+ccc path work-one
+```
+
+`show` prints metadata only. It does not print token values.
+
+### 3. Launch Claude Code
+
+```bash
+ccc work-one
+ccc work-one --resume <session-id>
+ccc work-one --dangerously-skip-permissions
+```
+
+`ccc work-one` launches:
+
+```bash
+claude --setting-sources "" --settings ~/.ccc/profiles/work-one.json
+```
+
+Any arguments after the profile name are passed through to Claude Code.
+
+### 4. Create a Profile Manually
+
+Create a complete Claude settings JSON file:
+
+```bash
+mkdir -p ~/.ccc/profiles
+cat > ~/.ccc/profiles/work.json <<'JSON'
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.example.com/v1",
+    "ANTHROPIC_AUTH_TOKEN": "sk-xxxxx",
+    "ANTHROPIC_MODEL": "claude-sonnet-4"
+  },
+  "includeCoAuthoredBy": false
+}
+JSON
+chmod 600 ~/.ccc/profiles/work.json
+```
+
+Then launch:
+
+```bash
 ccc work
 ```
 
----
+### 5. Verify Isolation
 
-## New .env Format
-
-CCP 3.0 uses simple `.env` files instead of JSON:
+Run this before and after `ccc <profile>`:
 
 ```bash
-# ~/.ccp/profiles/work.env
-# CCP Profile: work
-ANTHROPIC_BASE_URL=https://api.example.com/v1
-ANTHROPIC_AUTH_TOKEN=sk-xxxxx
-# Custom env vars
-ANTHROPIC_MODEL=claude-sonnet-4
-API_TIMEOUT_MS=600000
+cat ~/.claude/settings.json
 ```
 
-**Benefits:**
-- ✏️ Human-readable and editable
-- 🔍 Easy to debug
-- 📋 Easy to copy/share
-- 🛡️ No JSON parsing complexity
+The file should not change. CCC passes the profile with `--settings` and disables default Claude setting sources with `--setting-sources ""` for the spawned Claude process.
 
----
+## Profile Format
+
+Profiles are complete Claude Code settings JSON files:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.example.com/v1",
+    "ANTHROPIC_AUTH_TOKEN": "sk-xxxxx",
+    "ANTHROPIC_MODEL": "claude-sonnet-4"
+  },
+  "includeCoAuthoredBy": false,
+  "model": "sonnet"
+}
+```
+
+CCC passes the whole file to Claude Code. It does not edit or normalize the settings content.
+
+Do not use CCC as a JSON editor. Edit profile files directly or import them from CC Switch.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `ccc <profile>` | **Launch Claude Code with a profile** |
-| `ccc env <profile>` | Compatibility alias for `ccc <profile>` |
-| `ccp add <name>` | Add/update profile (interactive) |
-| `ccp remove <name>` | Remove a profile |
-| `ccp list` | List all profiles |
-| `ccp status` | Show current configuration and last launched profile |
-| `ccp set-env <profile> <VAR> <value>` | Set custom env var |
-| `ccp unset-env <profile> <VAR>` | Remove custom env var |
-| `ccp show-env <profile>` | Show all env vars for profile |
-| `ccp init` | Initialize Claude Code settings |
-| `ccp help` | Show help |
+| `ccc <profile> [args...]` | Launch Claude Code with a profile |
+| `ccc list` | List profiles under `~/.ccc/profiles` |
+| `ccc show <profile>` | Show profile metadata without printing secrets |
+| `ccc path <profile>` | Print the profile file path |
+| `ccc import-cc-switch` | Import all Claude providers from CC Switch |
+| `ccc import-cc-switch --current` | Import only the current CC Switch Claude provider |
 
----
+There is no `ccp` command anymore.
 
-## Configuration Location
+## Storage
 
-```
-~/.ccp/
+```text
+~/.ccc/
 ├── profiles/
-│   ├── work.env          # Profile definitions
-│   ├── personal.env
-│   └── ...
-└── current               # Last launched profile name
+│   ├── work-one.json
+│   └── kimi.json
+└── current
 ```
 
----
+CC Switch import reads:
 
-## Migration from CCP 2.x
-
-CCP 3.0 changes how launching works:
-
-- `ccp <profile>` is removed
-- `ccc <profile>` is now the only launcher
-- new installs do not inject shell functions into rc files
-
-Existing legacy rc blocks are cleaned up automatically by `install.sh` and `uninstall.sh`.
-
----
-
-## Migration from CCP 1.x
-
-CCP 3.0 is **not backward compatible** with 1.x profiles. You need to recreate your profiles:
-
-```bash
-# Old profiles were in ~/.ccp_profiles.json
-# New profiles are in ~/.ccp/profiles/*.env
-
-# 1. Backup old config
-cp ~/.ccp_profiles.json ~/.ccp_profiles.json.backup
-
-# 2. Re-create profiles
-ccp add work
-ccp add personal
-
-# 3. Done! Remove old config if desired
-rm ~/.ccp_profiles.json
+```text
+~/.cc-switch/cc-switch.db
 ```
 
----
+It copies `providers.settings_config` where `app_type='claude'` into CCC profile JSON files. It does not modify the CC Switch database.
 
-## Installation
-
-### Requirements
-
-- Bash 3.2+ (macOS default) or Zsh
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
-
-### Install
+## Install
 
 ```bash
-# One-line install (no git clone needed)
-curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
-```
-
-Or with wget:
-
-```bash
-wget -qO- https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/install.sh | bash
-```
-
-Or clone and install locally:
-
-```bash
-git clone https://github.com/WarrenWang798/claude-code-profiles.git
-cd claude-code-profiles
 ./install.sh
 ```
 
-Then make sure `~/.local/bin` is in your `PATH`:
+Installed files:
+
+```text
+~/.local/share/ccc/ccc
+~/.local/bin/ccc
+```
+
+Uninstall:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-### What Gets Installed
-
-```
-~/.local/share/ccp/ccp.sh    # Main script
-~/.local/share/ccp/ccc       # Launcher script
-~/.local/bin/ccp            # Symlink to main script
-~/.local/bin/ccc            # Symlink to launcher
-~/.ccp/profiles/              # Profile .env files (created on first use)
-```
-
-### Uninstall
-
-```bash
-# If installed via git clone
 ./uninstall.sh
-
-# If installed via curl (download uninstall script)
-curl -fsSL https://raw.githubusercontent.com/WarrenWang798/claude-code-profiles/main/uninstall.sh | bash
-
-# Optional: remove config
-rm -rf ~/.ccp
 ```
 
----
+Configuration is preserved at `~/.ccc`; remove it manually if needed.
 
-## How It Works
+## Guarantees
 
-```
-`ccp` manages profile files under `~/.ccp/profiles`.
-`ccc` reads one `.env` file, validates required variables, updates `~/.ccp/current`, and starts `claude` with `exec env`.
-Only the launched `claude` process receives the profile environment.
-```
-
-This architecture means:
-- Launching a profile only affects the spawned `claude` process
-- Multiple terminals can run different profiles simultaneously
-- No lock files, no race conditions, no state sync issues
-- No `eval` or shell-function dependency
-
----
-
-## CCP vs Alternatives
-
-| Feature | CCP 3.0 | CCM | CCS |
-|---------|---------|-----|-----|
-| Storage format | **.env files** | JSON | JSON |
-| Custom env vars per profile | **Yes** | No | No |
-| Terminal isolation guarantee | **Yes** | Writes global config | Shared proxy state |
-| Zero dependencies | **Yes** | Yes | No (Node.js) |
-| Built-in provider presets | No | 7+ | 17+ |
-| Proxy/routing features | No | No | Yes |
-| Web UI | No | No | Yes |
-**Choose CCP if:** You want predictable per-process Claude Code launches, minimal footprint, auditable code, and .env file simplicity.
-
-**Choose CCM if:** You need built-in provider presets and a simpler feature set.
-
-**Choose CCS if:** You want a proxy layer, Web UI, or don't mind Node.js dependencies.
-
----
-
-## Troubleshooting
-
-### Claude Code ignores my profile settings
-
-Run `ccp init` to clear conflicting settings from `~/.claude/settings.json`:
-
-```bash
-ccp init
-# Then restart Claude Code
-ccc work
-```
-
-### Environment variables not applied
-
-Use `ccc`, not `ccp`, to launch Claude Code with a profile:
-
-```bash
-# Correct
-ccc work
-
-# Wrong: `ccp` is now management-only
-ccp work
-```
-
-### Permission denied
-
-```bash
-chmod 600 ~/.ccp/profiles/*.env
-```
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
-
-## Related Projects
-
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) — Official Claude Code command-line tool
-- [Claude Code Switch (CCM)](https://github.com/foreveryh/claude-code-switch) — Switch between different AI model providers
-- [Claude Code Switch (CCS)](https://github.com/kaitranntt/ccs) — Full-featured proxy with Web UI
-- [Claude Code Router](https://github.com/musistudio/claude-code-router) — Request routing and load balancing
-
----
-
-## License
-
-[MIT License](LICENSE)
+- `ccc` does not modify `~/.claude/settings.json`.
+- `ccc` does not modify `~/.cc-switch/cc-switch.db`.
+- `ccc` launches Claude Code with `--setting-sources ""` so default user/project/local settings do not leak into the profile run.
+- `ccc` unsets external `ANTHROPIC_API_KEY` for the launched process to avoid shell leakage.
+- If a profile JSON contains `env.ANTHROPIC_API_KEY`, Claude Code still receives it via `--settings`.
+- `ccc` uses no Python, Node, or jq. CC Switch import requires the system `sqlite3` command.
